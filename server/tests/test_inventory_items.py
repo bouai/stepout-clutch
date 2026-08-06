@@ -32,3 +32,85 @@ def test_create_invalid_quantity_returns_422(client):
         json={"name": "Laptop", "category": "electronics", "quantity": "many"},
     )
     assert response.status_code == 422
+
+
+def test_patch_single_field(client):
+    created = client.post(
+        "/inventory-items", json={"name": "Laptop", "category": "electronics"}
+    ).json()
+
+    response = client.patch(
+        f"/inventory-items/{created['id']}", json={"isPacked": True}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["isPacked"] is True
+    assert body["name"] == "Laptop"
+
+    get_response = client.get(f"/inventory-items/{created['id']}")
+    assert get_response.json()["isPacked"] is True
+
+
+def test_patch_multi_field(client):
+    created = client.post(
+        "/inventory-items", json={"name": "Laptop", "category": "electronics"}
+    ).json()
+
+    response = client.patch(
+        f"/inventory-items/{created['id']}",
+        json={"name": "Umbrella", "category": "weather-gear", "quantity": 2},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["name"] == "Umbrella"
+    assert body["category"] == "weather-gear"
+    assert body["quantity"] == 2
+
+
+def test_patch_missing_item_returns_404(client):
+    response = client.patch("/inventory-items/999", json={"isPacked": True})
+    assert response.status_code == 404
+
+
+def test_patch_invalid_category_returns_422(client):
+    created = client.post(
+        "/inventory-items", json={"name": "Laptop", "category": "electronics"}
+    ).json()
+
+    response = client.patch(
+        f"/inventory-items/{created['id']}", json={"category": "invalid"}
+    )
+    assert response.status_code == 422
+
+
+def test_patch_invalid_quantity_type_returns_422(client):
+    created = client.post(
+        "/inventory-items", json={"name": "Laptop", "category": "electronics"}
+    ).json()
+
+    response = client.patch(
+        f"/inventory-items/{created['id']}", json={"quantity": "many"}
+    )
+    assert response.status_code == 422
+
+
+def test_patch_empty_name_returns_422(client):
+    created = client.post(
+        "/inventory-items", json={"name": "Laptop", "category": "electronics"}
+    ).json()
+
+    response = client.patch(f"/inventory-items/{created['id']}", json={"name": ""})
+    assert response.status_code == 422
+
+
+def test_patch_empty_body_is_noop(client):
+    created = client.post(
+        "/inventory-items", json={"name": "Laptop", "category": "electronics"}
+    ).json()
+
+    response = client.patch(f"/inventory-items/{created['id']}", json={})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["name"] == "Laptop"
+    assert body["category"] == "electronics"
+    assert body["isPacked"] is False

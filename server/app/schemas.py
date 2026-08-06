@@ -63,6 +63,13 @@ class InventoryItem(InventoryItemBase):
     id: int
 
 
+class InventoryItemUpdate(CamelModel):
+    name: str | None = Field(default=None, min_length=1)
+    category: InventoryCategory | None = None
+    quantity: int | None = None
+    is_packed: bool | None = None
+
+
 class GeofenceTriggerBase(CamelModel):
     label: str
     latitude: float
