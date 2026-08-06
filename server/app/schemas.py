@@ -63,3 +63,22 @@ class GeofenceTriggerCreate(GeofenceTriggerBase):
 
 class GeofenceTrigger(GeofenceTriggerBase):
     id: int
+
+
+class SavedDestinationBase(CamelModel):
+    label: str
+    latitude: float
+    longitude: float
+
+
+class SavedDestinationCreate(SavedDestinationBase):
+    pass
+
+
+class SavedDestination(SavedDestinationBase):
+    id: int
+
+
+class Distance(CamelModel):
+    distance_km: float
+    bearing_degrees: int

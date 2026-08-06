@@ -37,3 +37,15 @@ export interface GeofenceTrigger {
   notificationMessage: string;
   isActive: boolean;
 }
+
+export interface SavedDestination {
+  id: number;
+  label: string;
+  latitude: number;
+  longitude: number;
+}
+
+export interface Distance {
+  distanceKm: number;
+  bearingDegrees: number;
+}

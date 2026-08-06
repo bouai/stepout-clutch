@@ -4,7 +4,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.routers import checklist_items, geofence_triggers, inventory_items
+from app.routers import (
+    checklist_items,
+    geofence_triggers,
+    inventory_items,
+    saved_destinations,
+)
 
 
 @asynccontextmanager
@@ -25,6 +30,7 @@ app.add_middleware(
 app.include_router(checklist_items.router)
 app.include_router(inventory_items.router)
 app.include_router(geofence_triggers.router)
+app.include_router(saved_destinations.router)
 
 
 @app.get("/health")
