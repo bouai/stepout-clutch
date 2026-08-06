@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 from app.models import (
@@ -36,6 +36,16 @@ class ChecklistItemCreate(ChecklistItemBase):
 class ChecklistItem(ChecklistItemBase):
     id: int
     created_at: datetime
+
+
+class ChecklistItemUpdate(CamelModel):
+    label: str | None = Field(default=None, min_length=1)
+    category: ChecklistCategory | None = None
+    is_checked: bool | None = None
+    is_weather_triggered: bool | None = None
+    weather_condition: ChecklistWeatherCondition | None = None
+    sort_order: int | None = None
+    inventory_item_id: int | None = None
 
 
 class InventoryItemBase(CamelModel):

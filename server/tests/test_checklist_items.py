@@ -72,3 +72,74 @@ def test_create_invalid_weather_condition_returns_422(client):
         },
     )
     assert response.status_code == 422
+
+
+def test_patch_single_field(client):
+    created = client.post(
+        "/checklist-items", json={"label": "Pack umbrella", "category": "weather"}
+    ).json()
+
+    response = client.patch(
+        f"/checklist-items/{created['id']}", json={"isChecked": True}
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["isChecked"] is True
+    assert body["label"] == "Pack umbrella"
+
+    get_response = client.get(f"/checklist-items/{created['id']}")
+    assert get_response.json()["isChecked"] is True
+
+
+def test_patch_multi_field(client):
+    created = client.post(
+        "/checklist-items", json={"label": "Pack umbrella", "category": "weather"}
+    ).json()
+
+    response = client.patch(
+        f"/checklist-items/{created['id']}",
+        json={"label": "Pack raincoat", "category": "routine", "weatherCondition": "rain"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["label"] == "Pack raincoat"
+    assert body["category"] == "routine"
+    assert body["weatherCondition"] == "rain"
+
+
+def test_patch_missing_item_returns_404(client):
+    response = client.patch("/checklist-items/999", json={"isChecked": True})
+    assert response.status_code == 404
+
+
+def test_patch_invalid_enum_returns_422(client):
+    created = client.post(
+        "/checklist-items", json={"label": "Pack umbrella", "category": "weather"}
+    ).json()
+
+    response = client.patch(
+        f"/checklist-items/{created['id']}", json={"category": "invalid"}
+    )
+    assert response.status_code == 422
+
+
+def test_patch_empty_label_returns_422(client):
+    created = client.post(
+        "/checklist-items", json={"label": "Pack umbrella", "category": "weather"}
+    ).json()
+
+    response = client.patch(f"/checklist-items/{created['id']}", json={"label": ""})
+    assert response.status_code == 422
+
+
+def test_patch_empty_body_is_noop(client):
+    created = client.post(
+        "/checklist-items", json={"label": "Pack umbrella", "category": "weather"}
+    ).json()
+
+    response = client.patch(f"/checklist-items/{created['id']}", json={})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["label"] == "Pack umbrella"
+    assert body["category"] == "weather"
+    assert body["isChecked"] is False
