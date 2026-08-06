@@ -26,6 +26,15 @@ class GeofenceTriggerType(str, enum.Enum):
     EXIT = "exit"
 
 
+class ChecklistWeatherCondition(str, enum.Enum):
+    RAIN = "rain"
+    SNOW = "snow"
+    EXTREME_HEAT = "extreme-heat"
+    EXTREME_COLD = "extreme-cold"
+    WIND = "wind"
+    CLEAR = "clear"
+
+
 class ChecklistItem(Base):
     __tablename__ = "checklist_items"
 
@@ -37,6 +46,9 @@ class ChecklistItem(Base):
     is_checked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_weather_triggered: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
+    )
+    weather_condition: Mapped[ChecklistWeatherCondition | None] = mapped_column(
+        Enum(ChecklistWeatherCondition), nullable=True
     )
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
