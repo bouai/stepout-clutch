@@ -29,3 +29,21 @@ def create_inventory_item(
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.patch("/{item_id}", response_model=schemas.InventoryItem)
+def update_inventory_item(
+    item_id: int,
+    payload: schemas.InventoryItemUpdate,
+    db: Session = Depends(get_db),
+):
+    item = db.get(models.InventoryItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Inventory item not found")
+
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(item, field, value)
+
+    db.commit()
+    db.refresh(item)
+    return item
