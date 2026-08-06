@@ -3,7 +3,12 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
-from app.models import ChecklistCategory, GeofenceTriggerType, InventoryCategory
+from app.models import (
+    ChecklistCategory,
+    ChecklistWeatherCondition,
+    GeofenceTriggerType,
+    InventoryCategory,
+)
 
 
 class CamelModel(BaseModel):
@@ -19,6 +24,7 @@ class ChecklistItemBase(CamelModel):
     category: ChecklistCategory
     is_checked: bool = False
     is_weather_triggered: bool = False
+    weather_condition: ChecklistWeatherCondition | None = None
     sort_order: int = 0
     inventory_item_id: int | None = None
 
@@ -82,3 +88,10 @@ class SavedDestination(SavedDestinationBase):
 class Distance(CamelModel):
     distance_km: float
     bearing_degrees: int
+
+
+class Weather(CamelModel):
+    temperature_celsius: float
+    wind_speed_kmh: float
+    condition: ChecklistWeatherCondition
+    fetched_at: datetime
