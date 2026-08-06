@@ -29,3 +29,21 @@ def create_checklist_item(
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.patch("/{item_id}", response_model=schemas.ChecklistItem)
+def update_checklist_item(
+    item_id: int,
+    payload: schemas.ChecklistItemUpdate,
+    db: Session = Depends(get_db),
+):
+    item = db.get(models.ChecklistItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Checklist item not found")
+
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(item, field, value)
+
+    db.commit()
+    db.refresh(item)
+    return item
