@@ -8,6 +8,7 @@
     "@react-navigation/native": "^7.3.14",
     "expo": "~57.0.10",
     "expo-location": "~57.0.8",
+    "expo-notifications": "~57.0.9",
     "expo-status-bar": "~57.0.1",
     "react": "19.2.3",
     "react-native": "0.86.2",

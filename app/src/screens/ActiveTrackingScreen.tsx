@@ -1,50 +1,409 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import * as Location from 'expo-location';
+import * as Notifications from 'expo-notifications';
+import { useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import MapView, { Circle, LatLng, Marker } from 'react-native-maps';
+
+import type { GeofenceTrigger, GeofenceTriggerType } from '../types/models';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
+const DEFAULT_LATITUDE = 28.6139;
+const DEFAULT_LONGITUDE = 77.209;
+const DELTA = 0.05;
+const EARTH_RADIUS_METERS = 6371000;
 
-type ConnectionStatus = 'loading' | 'connected' | 'error';
+type TrackingStatus = 'checking' | 'unavailable' | 'active';
+type ListStatus = 'loading' | 'ready' | 'error';
+type ProximityState = 'inside' | 'outside';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
+
+function haversineDistanceMeters(a: LatLng, b: LatLng): number {
+  const lat1 = (a.latitude * Math.PI) / 180;
+  const lat2 = (b.latitude * Math.PI) / 180;
+  const deltaLat = ((b.latitude - a.latitude) * Math.PI) / 180;
+  const deltaLon = ((b.longitude - a.longitude) * Math.PI) / 180;
+  const h =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
+  return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(h));
+}
 
 export default function ActiveTrackingScreen() {
-  const [status, setStatus] = useState<ConnectionStatus>('loading');
+  const [currentLocation, setCurrentLocation] = useState<LatLng | null>(null);
+  const [trackingStatus, setTrackingStatus] = useState<TrackingStatus>('checking');
+
+  const [triggers, setTriggers] = useState<GeofenceTrigger[]>([]);
+  const [listStatus, setListStatus] = useState<ListStatus>('loading');
+
+  const [pendingLocation, setPendingLocation] = useState<LatLng | null>(null);
+  const [modalLabel, setModalLabel] = useState('');
+  const [modalRadius, setModalRadius] = useState('');
+  const [modalType, setModalType] = useState<GeofenceTriggerType>('enter');
+  const [modalMessage, setModalMessage] = useState('');
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [modalSubmitting, setModalSubmitting] = useState(false);
+
+  const baselineRef = useRef<Record<number, ProximityState>>({});
+  const triggersRef = useRef<GeofenceTrigger[]>(triggers);
+
+  useEffect(() => {
+    triggersRef.current = triggers;
+  }, [triggers]);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function checkHealth() {
+    async function loadTriggers() {
       try {
-        const response = await fetch(`${API_URL}/health`);
+        const response = await fetch(`${API_URL}/geofence-triggers`);
+        if (!response.ok) throw new Error('geofence-triggers request failed');
+        const data: GeofenceTrigger[] = await response.json();
         if (!cancelled) {
-          setStatus(response.ok ? 'connected' : 'error');
+          setTriggers(data);
+          setListStatus('ready');
         }
       } catch {
         if (!cancelled) {
-          setStatus('error');
+          setListStatus('error');
         }
       }
     }
 
-    checkHealth();
+    loadTriggers();
 
     return () => {
       cancelled = true;
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    let subscription: Location.LocationSubscription | null = null;
+
+    function evaluateTriggers(location: LatLng) {
+      for (const trigger of triggersRef.current) {
+        if (!trigger.isActive) continue;
+
+        const distanceMeters = haversineDistanceMeters(location, {
+          latitude: trigger.latitude,
+          longitude: trigger.longitude,
+        });
+        const state: ProximityState =
+          distanceMeters <= trigger.radiusMeters ? 'inside' : 'outside';
+        const priorState = baselineRef.current[trigger.id];
+
+        if (priorState === undefined) {
+          baselineRef.current[trigger.id] = state;
+          continue;
+        }
+
+        if (priorState !== state) {
+          baselineRef.current[trigger.id] = state;
+          const transitionType: GeofenceTriggerType =
+            state === 'inside' ? 'enter' : 'exit';
+          if (transitionType === trigger.triggerType) {
+            Notifications.scheduleNotificationAsync({
+              content: {
+                title: trigger.label,
+                body: trigger.notificationMessage,
+              },
+              trigger: null,
+            });
+          }
+        }
+      }
+    }
+
+    async function startTracking() {
+      const locationPermission = await Location.requestForegroundPermissionsAsync();
+      const notificationPermission = await Notifications.requestPermissionsAsync();
+
+      if (
+        cancelled ||
+        locationPermission.status !== 'granted' ||
+        !notificationPermission.granted
+      ) {
+        if (!cancelled) setTrackingStatus('unavailable');
+        return;
+      }
+
+      setTrackingStatus('active');
+
+      subscription = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.Balanced, distanceInterval: 10 },
+        (position) => {
+          const location: LatLng = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          };
+          setCurrentLocation(location);
+          evaluateTriggers(location);
+        }
+      );
+    }
+
+    startTracking();
+
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
+  }, []);
+
+  function closeCreateModal() {
+    setPendingLocation(null);
+    setModalLabel('');
+    setModalRadius('');
+    setModalType('enter');
+    setModalMessage('');
+    setModalError(null);
+  }
+
+  const radiusNumber = parseFloat(modalRadius);
+  const validRadius = Number.isFinite(radiusNumber) && radiusNumber > 0;
+  const canSubmitModal =
+    modalLabel.trim().length > 0 &&
+    validRadius &&
+    modalMessage.trim().length > 0 &&
+    !modalSubmitting;
+
+  async function submitCreateTrigger() {
+    if (!canSubmitModal || !pendingLocation) return;
+
+    setModalSubmitting(true);
+    setModalError(null);
+
+    try {
+      const response = await fetch(`${API_URL}/geofence-triggers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: modalLabel.trim(),
+          latitude: pendingLocation.latitude,
+          longitude: pendingLocation.longitude,
+          radiusMeters: radiusNumber,
+          triggerType: modalType,
+          notificationMessage: modalMessage.trim(),
+        }),
+      });
+      if (!response.ok) throw new Error('create request failed');
+      const created: GeofenceTrigger = await response.json();
+      setTriggers((prev) => [...prev, created]);
+      closeCreateModal();
+    } catch {
+      setModalError('Could not add trigger');
+    } finally {
+      setModalSubmitting(false);
+    }
+  }
+
+  const mapCenter = currentLocation ?? {
+    latitude: DEFAULT_LATITUDE,
+    longitude: DEFAULT_LONGITUDE,
+  };
+
   return (
     <View style={styles.container}>
-      <Text>Active Tracking</Text>
-      {status === 'loading' && <ActivityIndicator style={styles.status} />}
-      {status === 'connected' && (
-        <Text style={styles.status} testID="connection-status">
-          Connected (ok)
-        </Text>
-      )}
-      {status === 'error' && (
-        <Text style={styles.status} testID="connection-status">
-          Backend unreachable
-        </Text>
-      )}
+      <View style={styles.mapSection}>
+        <MapView
+          style={styles.map}
+          region={{
+            latitude: mapCenter.latitude,
+            longitude: mapCenter.longitude,
+            latitudeDelta: DELTA,
+            longitudeDelta: DELTA,
+          }}
+          onPress={(e) => {
+            setPendingLocation(e.nativeEvent.coordinate);
+            setModalLabel('');
+            setModalRadius('');
+            setModalType('enter');
+            setModalMessage('');
+            setModalError(null);
+          }}
+        >
+          {currentLocation && (
+            <Marker
+              coordinate={currentLocation}
+              title="You"
+              pinColor="blue"
+              testID="current-location-marker"
+            />
+          )}
+
+          {triggers.map((trigger) => (
+            <Circle
+              key={trigger.id}
+              center={{ latitude: trigger.latitude, longitude: trigger.longitude }}
+              radius={trigger.radiusMeters}
+              fillColor={
+                trigger.isActive ? 'rgba(10,125,52,0.2)' : 'rgba(136,136,136,0.15)'
+              }
+              strokeColor={
+                trigger.isActive ? 'rgba(10,125,52,0.8)' : 'rgba(136,136,136,0.6)'
+              }
+              strokeWidth={2}
+            />
+          ))}
+
+          {pendingLocation && (
+            <>
+              <Marker
+                coordinate={pendingLocation}
+                pinColor="orange"
+                testID="pending-marker"
+              />
+              {validRadius && (
+                <Circle
+                  center={pendingLocation}
+                  radius={radiusNumber}
+                  fillColor="rgba(230,126,34,0.2)"
+                  strokeColor="rgba(230,126,34,0.8)"
+                  strokeWidth={2}
+                />
+              )}
+            </>
+          )}
+        </MapView>
+
+        {trackingStatus === 'checking' && (
+          <Text style={styles.note}>Checking tracking status…</Text>
+        )}
+        {trackingStatus === 'active' && (
+          <Text style={styles.note} testID="tracking-status">
+            Tracking: active
+          </Text>
+        )}
+        {trackingStatus === 'unavailable' && (
+          <Text style={styles.note} testID="tracking-status">
+            Tracking unavailable
+          </Text>
+        )}
+      </View>
+
+      <View style={styles.listSection}>
+        {listStatus === 'loading' && <ActivityIndicator />}
+        {listStatus === 'error' && (
+          <Text testID="triggers-error">Could not load triggers</Text>
+        )}
+        {listStatus === 'ready' && triggers.length === 0 && (
+          <Text testID="triggers-empty">No geofence triggers yet</Text>
+        )}
+        {listStatus === 'ready' &&
+          triggers.map((trigger) => (
+            <View key={trigger.id} style={styles.triggerRow}>
+              <Text style={!trigger.isActive ? styles.triggerInactive : undefined}>
+                {trigger.label} · {trigger.triggerType} · {trigger.radiusMeters}m ·{' '}
+                {trigger.isActive ? 'active' : 'inactive'}
+              </Text>
+            </View>
+          ))}
+      </View>
+
+      <Modal visible={pendingLocation !== null} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.sectionTitle}>Add Geofence Trigger</Text>
+
+            {pendingLocation && (
+              <Text style={styles.modalCoords}>
+                {pendingLocation.latitude.toFixed(5)},{' '}
+                {pendingLocation.longitude.toFixed(5)}
+              </Text>
+            )}
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Label"
+              value={modalLabel}
+              onChangeText={setModalLabel}
+              testID="modal-label-input"
+            />
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Radius (meters)"
+              value={modalRadius}
+              onChangeText={setModalRadius}
+              keyboardType="numeric"
+              testID="modal-radius-input"
+            />
+
+            <View style={styles.typeToggle}>
+              <Pressable
+                style={[
+                  styles.typeOption,
+                  modalType === 'enter' && styles.typeOptionSelected,
+                ]}
+                onPress={() => setModalType('enter')}
+                testID="modal-type-enter"
+              >
+                <Text>Enter</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.typeOption,
+                  modalType === 'exit' && styles.typeOptionSelected,
+                ]}
+                onPress={() => setModalType('exit')}
+                testID="modal-type-exit"
+              >
+                <Text>Exit</Text>
+              </Pressable>
+            </View>
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Notification message"
+              value={modalMessage}
+              onChangeText={setModalMessage}
+              testID="modal-message-input"
+            />
+
+            {modalError && (
+              <Text style={styles.rowError} testID="modal-error">
+                {modalError}
+              </Text>
+            )}
+
+            <View style={styles.modalActions}>
+              <Pressable onPress={closeCreateModal} testID="modal-cancel-button">
+                <Text style={styles.modalActionText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={submitCreateTrigger}
+                disabled={!canSubmitModal}
+                testID="modal-save-button"
+              >
+                <Text
+                  style={[
+                    styles.modalActionText,
+                    !canSubmitModal && styles.modalActionDisabled,
+                  ]}
+                >
+                  Save
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -52,10 +411,88 @@ export default function ActiveTrackingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingTop: 60,
   },
-  status: {
-    marginTop: 12,
+  mapSection: {
+    height: 280,
+  },
+  map: {
+    flex: 1,
+  },
+  note: {
+    fontSize: 12,
+    color: '#666',
+    paddingHorizontal: 16,
+    paddingTop: 4,
+  },
+  listSection: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  triggerRow: {
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#ccc',
+  },
+  triggerInactive: {
+    color: '#999',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 16,
+    gap: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalCoords: {
+    fontSize: 12,
+    color: '#666',
+  },
+  modalInput: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#999',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  typeToggle: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  typeOption: {
+    flex: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: '#999',
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  typeOptionSelected: {
+    borderColor: '#0a7d34',
+    backgroundColor: 'rgba(10,125,52,0.1)',
+  },
+  rowError: {
+    fontSize: 12,
+    color: '#c0392b',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 24,
+  },
+  modalActionText: {
+    fontWeight: '600',
+    color: '#0a7d34',
+  },
+  modalActionDisabled: {
+    color: '#aaa',
   },
 });
