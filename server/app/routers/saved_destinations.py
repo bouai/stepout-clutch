@@ -58,6 +58,16 @@ def create_saved_destination(
     return destination
 
 
+@router.delete("/{destination_id}", status_code=204)
+def delete_saved_destination(destination_id: int, db: Session = Depends(get_db)):
+    destination = db.get(models.SavedDestination, destination_id)
+    if destination is None:
+        raise HTTPException(status_code=404, detail="Saved destination not found")
+
+    db.delete(destination)
+    db.commit()
+
+
 @router.get("/{destination_id}/distance", response_model=schemas.Distance)
 def get_distance(
     destination_id: int,
