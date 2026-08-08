@@ -63,3 +63,25 @@ def test_distance_missing_destination_returns_404(client):
         "/saved-destinations/999/distance", params={"lat": 28.6139, "lon": 77.2090}
     )
     assert response.status_code == 404
+
+
+def test_delete_removes_destination(client):
+    create_response = client.post(
+        "/saved-destinations",
+        json={"label": "India Gate", "latitude": 28.6129, "longitude": 77.2295},
+    )
+    destination_id = create_response.json()["id"]
+
+    delete_response = client.delete(f"/saved-destinations/{destination_id}")
+    assert delete_response.status_code == 204
+
+    get_response = client.get(f"/saved-destinations/{destination_id}")
+    assert get_response.status_code == 404
+
+    list_response = client.get("/saved-destinations")
+    assert list_response.json() == []
+
+
+def test_delete_missing_returns_404(client):
+    response = client.delete("/saved-destinations/999")
+    assert response.status_code == 404
