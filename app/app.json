@@ -27,7 +27,8 @@
         {
           "locationWhenInUsePermission": "StepOut uses your location to show current weather conditions for your checklist and center the transit map."
         }
-      ]
+      ],
+      "expo-notifications"
     ]
   }
 }
