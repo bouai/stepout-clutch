@@ -1,5 +1,6 @@
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -21,6 +22,7 @@ import type {
   InventoryItem,
   Weather,
 } from '../types/models';
+import { cardShadow, colors, radius, spacing, typography } from '../theme';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 const DEFAULT_LATITUDE = 28.6139;
@@ -357,39 +359,45 @@ export default function PlannerScreen() {
   const canSubmitModal = modalLabel.trim().length > 0 && modalCategory !== null;
 
   return (
-    <View style={styles.container}>
+    <LinearGradient
+      colors={[colors.gradientStart, colors.gradientEnd]}
+      style={styles.container}
+    >
       <Text style={styles.title}>Planner</Text>
 
       <TripSwitcher />
 
-      <View style={styles.weatherSection}>
-        {weatherStatus === 'loading' && <ActivityIndicator />}
-        {weatherStatus === 'ready' && weather && (
-          <>
-            <Text testID="weather-summary">
-              {Math.round(weather.temperatureCelsius)}°C · {weather.condition}
-            </Text>
-            {usedDefaultLocation && (
-              <Text style={styles.note}>Using default location</Text>
-            )}
-          </>
-        )}
-        {weatherStatus === 'unavailable' && (
-          <Text testID="weather-unavailable">Weather unavailable</Text>
-        )}
+      <View style={styles.card}>
+        <View style={styles.weatherSection}>
+          {weatherStatus === 'loading' && <ActivityIndicator />}
+          {weatherStatus === 'ready' && weather && (
+            <>
+              <Text testID="weather-summary">
+                {Math.round(weather.temperatureCelsius)}°C · {weather.condition}
+              </Text>
+              {usedDefaultLocation && (
+                <Text style={styles.note}>Using default location</Text>
+              )}
+            </>
+          )}
+          {weatherStatus === 'unavailable' && (
+            <Text testID="weather-unavailable">Weather unavailable</Text>
+          )}
+        </View>
       </View>
 
-      <View style={styles.checklistHeader}>
-        <Text style={styles.sectionTitle}>Checklist</Text>
-        <Pressable onPress={openAddModal} testID="add-item-button">
-          <Text style={styles.addButton}>+ Add Item</Text>
-        </Pressable>
-      </View>
+      <View style={[styles.card, styles.checklistCard]}>
+        <View style={styles.checklistHeader}>
+          <Text style={styles.sectionTitle}>Checklist</Text>
+          <Pressable onPress={openAddModal} testID="add-item-button">
+            <Text style={styles.addButton}>+ Add Item</Text>
+          </Pressable>
+        </View>
 
-      <View style={styles.checklistSection}>
-        {checklistLoading && <ActivityIndicator />}
-        {!checklistLoading &&
-          checklistItems.map((item) => (
+        <View style={styles.checklistSection}>
+          {checklistLoading && <ActivityIndicator />}
+          {!checklistLoading &&
+            checklistItems.map((item) => (
             <View key={item.id} style={styles.checklistRow}>
               <View style={styles.checklistRowMain}>
                 <Pressable
@@ -464,6 +472,7 @@ export default function PlannerScreen() {
               )}
             </View>
           ))}
+        </View>
       </View>
 
       <Modal visible={modalVisible} transparent animationType="fade">
@@ -534,7 +543,7 @@ export default function PlannerScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -543,15 +552,23 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 60,
     paddingHorizontal: 16,
+    paddingBottom: 120,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 16,
+    ...typography.heading,
+    marginBottom: spacing.md,
   },
-  weatherSection: {
-    marginBottom: 24,
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    ...cardShadow,
   },
+  checklistCard: {
+    flex: 1,
+  },
+  weatherSection: {},
   note: {
     fontSize: 12,
     color: '#666',
@@ -626,8 +643,8 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
     padding: 16,
     gap: 12,
   },

@@ -1,5 +1,6 @@
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,6 +16,7 @@ import {
 import TripSwitcher from '../components/TripSwitcher';
 import { useTripContext } from '../context/TripContext';
 import type { InventoryCategory, InventoryItem } from '../types/models';
+import { cardShadow, colors, radius, spacing, typography } from '../theme';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 
@@ -197,7 +199,10 @@ export default function InventoryScreen() {
   const canSubmitModal = modalName.trim().length > 0 && modalCategory !== null;
 
   return (
-    <View style={styles.container}>
+    <LinearGradient
+      colors={[colors.gradientStart, colors.gradientEnd]}
+      style={styles.container}
+    >
       <View style={styles.header}>
         <Text style={styles.title}>Inventory</Text>
         <Pressable onPress={openAddModal} testID="add-item-button">
@@ -207,40 +212,42 @@ export default function InventoryScreen() {
 
       <TripSwitcher />
 
-      {loading && <ActivityIndicator />}
-      {!loading && items.length === 0 && (
-        <Text testID="inventory-empty">No inventory items yet</Text>
-      )}
-      {!loading &&
-        items.length > 0 &&
-        items.map((item) => (
-          <View key={item.id} style={styles.row}>
-            <View style={styles.rowMain}>
-              <Pressable
-                onPress={() => togglePacked(item)}
-                testID={`checkbox-${item.id}`}
-                hitSlop={8}
-              >
-                <Text style={styles.checkbox}>{item.isPacked ? '☑' : '☐'}</Text>
-              </Pressable>
-              <Text style={item.isPacked ? styles.nameChecked : styles.name}>
-                {item.name} ({item.quantity})
-              </Text>
-              <Pressable
-                onPress={() => confirmDelete(item)}
-                testID={`delete-${item.id}`}
-                hitSlop={8}
-              >
-                <Text style={styles.deleteButton}>Delete</Text>
-              </Pressable>
+      <View style={[styles.card, styles.listCard]}>
+        {loading && <ActivityIndicator />}
+        {!loading && items.length === 0 && (
+          <Text testID="inventory-empty">No inventory items yet</Text>
+        )}
+        {!loading &&
+          items.length > 0 &&
+          items.map((item) => (
+            <View key={item.id} style={styles.row}>
+              <View style={styles.rowMain}>
+                <Pressable
+                  onPress={() => togglePacked(item)}
+                  testID={`checkbox-${item.id}`}
+                  hitSlop={8}
+                >
+                  <Text style={styles.checkbox}>{item.isPacked ? '☑' : '☐'}</Text>
+                </Pressable>
+                <Text style={item.isPacked ? styles.nameChecked : styles.name}>
+                  {item.name} ({item.quantity})
+                </Text>
+                <Pressable
+                  onPress={() => confirmDelete(item)}
+                  testID={`delete-${item.id}`}
+                  hitSlop={8}
+                >
+                  <Text style={styles.deleteButton}>Delete</Text>
+                </Pressable>
+              </View>
+              {rowErrors[item.id] && (
+                <Text style={styles.rowError} testID={`row-error-${item.id}`}>
+                  {rowErrors[item.id]}
+                </Text>
+              )}
             </View>
-            {rowErrors[item.id] && (
-              <Text style={styles.rowError} testID={`row-error-${item.id}`}>
-                {rowErrors[item.id]}
-              </Text>
-            )}
-          </View>
-        ))}
+          ))}
+      </View>
 
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -294,7 +301,7 @@ export default function InventoryScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -303,16 +310,26 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 60,
     paddingHorizontal: 16,
+    paddingBottom: 120,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: spacing.md,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '600',
+    ...typography.heading,
+  },
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    ...cardShadow,
+  },
+  listCard: {
+    flex: 1,
   },
   sectionTitle: {
     fontSize: 16,
@@ -359,8 +376,8 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
     padding: 16,
     gap: 12,
   },
