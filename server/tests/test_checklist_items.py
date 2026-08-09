@@ -190,3 +190,23 @@ def test_patch_is_checked_cascades_to_linked_inventory_item(client):
     client.patch(f"/checklist-items/{checklist_item['id']}", json={"isChecked": False})
     linked = client.get(f"/inventory-items/{inventory_item['id']}").json()
     assert linked["isPacked"] is False
+
+
+def test_delete_removes_item(client):
+    created = client.post(
+        "/checklist-items", json={"label": "Pack umbrella", "category": "weather"}
+    ).json()
+
+    delete_response = client.delete(f"/checklist-items/{created['id']}")
+    assert delete_response.status_code == 204
+
+    get_response = client.get(f"/checklist-items/{created['id']}")
+    assert get_response.status_code == 404
+
+    list_response = client.get("/checklist-items")
+    assert list_response.json() == []
+
+
+def test_delete_missing_returns_404(client):
+    response = client.delete("/checklist-items/999")
+    assert response.status_code == 404

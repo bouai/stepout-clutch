@@ -3,6 +3,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   StyleSheet,
@@ -107,6 +108,42 @@ export default function InventoryScreen() {
     }
   }
 
+  function confirmDelete(item: InventoryItem) {
+    Alert.alert(
+      'Delete item?',
+      `Delete "${item.name}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => performDelete(item),
+        },
+      ]
+    );
+  }
+
+  async function performDelete(item: InventoryItem) {
+    const index = items.findIndex((row) => row.id === item.id);
+
+    clearRowError(item.id);
+    setItems((prev) => prev.filter((row) => row.id !== item.id));
+
+    try {
+      const response = await fetch(`${API_URL}/inventory-items/${item.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('delete request failed');
+    } catch {
+      setItems((prev) => {
+        const next = [...prev];
+        next.splice(index, 0, item);
+        return next;
+      });
+      setRowErrors((prev) => ({ ...prev, [item.id]: 'Could not delete' }));
+    }
+  }
+
   function openAddModal() {
     setModalName('');
     setModalCategory(null);
@@ -175,6 +212,13 @@ export default function InventoryScreen() {
               <Text style={item.isPacked ? styles.nameChecked : styles.name}>
                 {item.name} ({item.quantity})
               </Text>
+              <Pressable
+                onPress={() => confirmDelete(item)}
+                testID={`delete-${item.id}`}
+                hitSlop={8}
+              >
+                <Text style={styles.deleteButton}>Delete</Text>
+              </Pressable>
             </View>
             {rowErrors[item.id] && (
               <Text style={styles.rowError} testID={`row-error-${item.id}`}>
@@ -284,6 +328,10 @@ const styles = StyleSheet.create({
     flex: 1,
     textDecorationLine: 'line-through',
     color: '#888',
+  },
+  deleteButton: {
+    color: '#c0392b',
+    fontWeight: '600',
   },
   rowError: {
     fontSize: 12,

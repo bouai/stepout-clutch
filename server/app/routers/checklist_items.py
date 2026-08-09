@@ -62,3 +62,13 @@ def update_checklist_item(
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.delete("/{item_id}", status_code=204)
+def delete_checklist_item(item_id: int, db: Session = Depends(get_db)):
+    item = db.get(models.ChecklistItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Checklist item not found")
+
+    db.delete(item)
+    db.commit()

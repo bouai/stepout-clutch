@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   StyleSheet,
@@ -50,6 +51,7 @@ export default function ActiveTrackingScreen() {
 
   const [triggers, setTriggers] = useState<GeofenceTrigger[]>([]);
   const [listStatus, setListStatus] = useState<ListStatus>('loading');
+  const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
 
   const [pendingLocation, setPendingLocation] = useState<LatLng | null>(null);
   const [modalLabel, setModalLabel] = useState('');
@@ -173,6 +175,79 @@ export default function ActiveTrackingScreen() {
     setModalType('enter');
     setModalMessage('');
     setModalError(null);
+  }
+
+  function clearRowError(triggerId: number) {
+    setRowErrors((prev) => {
+      if (!(triggerId in prev)) return prev;
+      const next = { ...prev };
+      delete next[triggerId];
+      return next;
+    });
+  }
+
+  async function toggleActive(trigger: GeofenceTrigger) {
+    const previousActive = trigger.isActive;
+    const nextActive = !previousActive;
+
+    clearRowError(trigger.id);
+    setTriggers((prev) =>
+      prev.map((row) =>
+        row.id === trigger.id ? { ...row, isActive: nextActive } : row
+      )
+    );
+
+    try {
+      const response = await fetch(`${API_URL}/geofence-triggers/${trigger.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: nextActive }),
+      });
+      if (!response.ok) throw new Error('patch request failed');
+    } catch {
+      setTriggers((prev) =>
+        prev.map((row) =>
+          row.id === trigger.id ? { ...row, isActive: previousActive } : row
+        )
+      );
+      setRowErrors((prev) => ({ ...prev, [trigger.id]: 'Could not save change' }));
+    }
+  }
+
+  function confirmDelete(trigger: GeofenceTrigger) {
+    Alert.alert(
+      'Delete trigger?',
+      `Delete "${trigger.label}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => performDelete(trigger),
+        },
+      ]
+    );
+  }
+
+  async function performDelete(trigger: GeofenceTrigger) {
+    const index = triggers.findIndex((row) => row.id === trigger.id);
+
+    clearRowError(trigger.id);
+    setTriggers((prev) => prev.filter((row) => row.id !== trigger.id));
+
+    try {
+      const response = await fetch(`${API_URL}/geofence-triggers/${trigger.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('delete request failed');
+    } catch {
+      setTriggers((prev) => {
+        const next = [...prev];
+        next.splice(index, 0, trigger);
+        return next;
+      });
+      setRowErrors((prev) => ({ ...prev, [trigger.id]: 'Could not delete' }));
+    }
   }
 
   const radiusNumber = parseFloat(modalRadius);
@@ -308,10 +383,38 @@ export default function ActiveTrackingScreen() {
         {listStatus === 'ready' &&
           triggers.map((trigger) => (
             <View key={trigger.id} style={styles.triggerRow}>
-              <Text style={!trigger.isActive ? styles.triggerInactive : undefined}>
-                {trigger.label} · {trigger.triggerType} · {trigger.radiusMeters}m ·{' '}
-                {trigger.isActive ? 'active' : 'inactive'}
-              </Text>
+              <View style={styles.triggerRowMain}>
+                <Pressable
+                  onPress={() => toggleActive(trigger)}
+                  testID={`toggle-${trigger.id}`}
+                  hitSlop={8}
+                >
+                  <Text style={styles.checkbox}>
+                    {trigger.isActive ? '☑' : '☐'}
+                  </Text>
+                </Pressable>
+                <Text
+                  style={[
+                    styles.triggerLabel,
+                    !trigger.isActive && styles.triggerInactive,
+                  ]}
+                >
+                  {trigger.label} · {trigger.triggerType} · {trigger.radiusMeters}m ·{' '}
+                  {trigger.isActive ? 'active' : 'inactive'}
+                </Text>
+                <Pressable
+                  onPress={() => confirmDelete(trigger)}
+                  testID={`delete-${trigger.id}`}
+                  hitSlop={8}
+                >
+                  <Text style={styles.deleteButton}>Delete</Text>
+                </Pressable>
+              </View>
+              {rowErrors[trigger.id] && (
+                <Text style={styles.rowError} testID={`row-error-${trigger.id}`}>
+                  {rowErrors[trigger.id]}
+                </Text>
+              )}
             </View>
           ))}
       </View>
@@ -435,8 +538,23 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#ccc',
   },
+  triggerRowMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  checkbox: {
+    fontSize: 18,
+  },
+  triggerLabel: {
+    flex: 1,
+  },
   triggerInactive: {
     color: '#999',
+  },
+  deleteButton: {
+    color: '#c0392b',
+    fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,
