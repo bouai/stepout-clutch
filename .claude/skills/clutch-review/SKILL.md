@@ -17,14 +17,23 @@ the entire point of this gate.
 ## 1. Find a PR needing review
 
 ```bash
-gh pr list --state open --json number,title,labels,isDraft,url,headRefOid
+gh pr list --state open --json number,title,labels,isDraft,url,headRefOid,mergeable,mergeStateStatus
 ```
 
 Skip drafts. Skip PRs already labeled `loop-approved` or
-`loop-changes-requested` **unless the head commit SHA has changed** since
-the last verdict comment (compare `headRefOid` against the SHA recorded in
-the most recent `## Review` comment — not comment timestamps, which are
-fragile). If nothing needs review, say so and end the pass.
+`loop-changes-requested` **unless either**:
+- the head commit SHA has changed since the last verdict (compare
+  `headRefOid` against the SHA recorded in the most recent `## Review`
+  comment — not comment timestamps, which are fragile), **or**
+- `mergeable == "CONFLICTING"` right now, even with the same SHA as last
+  time. A prior `loop-approved` verdict only proves gate 3 passed *at that
+  moment* — if some other PR merged into this one's base branch since then,
+  this PR can go from clean to conflicting with zero new commits of its
+  own, and the stale label would otherwise never get corrected. Re-run gate
+  3 (and only gate 3 — gates 1 and 2 are still valid against the
+  unchanged SHA) and update the label if it now fails.
+
+If nothing needs review, say so and end the pass.
 
 ## 2. Review it — three gates, in order
 
