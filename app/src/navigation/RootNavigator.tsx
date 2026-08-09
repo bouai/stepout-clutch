@@ -3,6 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StyleSheet, Text, View } from 'react-native';
 
 import ActiveTrackingScreen from '../screens/ActiveTrackingScreen';
+import HomeScreen from '../screens/HomeScreen';
 import InventoryScreen from '../screens/InventoryScreen';
 import PlannerScreen from '../screens/PlannerScreen';
 import TransitScreen from '../screens/TransitScreen';
@@ -30,6 +31,14 @@ export default function RootNavigator() {
           tabBarItemStyle: styles.tabBarItem,
         }}
       >
+        <Tab.Screen
+          name="Home"
+          component={HomeScreen}
+          options={{
+            title: 'Home',
+            tabBarIcon: ({ focused }) => <TabIcon glyph="🏠" focused={focused} />,
+          }}
+        />
         <Tab.Screen
           name="Planner"
           component={PlannerScreen}
