@@ -69,7 +69,15 @@ the spec is genuinely ambiguous, go to step 7 — never guess.
 
 ## 4. Build
 
-- Branch from latest `origin/main`, named `claude/CLU-NNN-short-slug`.
+- If the issue description contains a line `Base branch: <hint>`, this issue
+  is stacked on another loop's not-yet-merged work. Resolve the actual
+  branch (`gh pr list --search "<hint issue id>" --json headRefName`, or
+  `git branch -r | grep <hint issue id>`), `git fetch origin` it, and branch
+  from that instead of `origin/main`. If it can't be resolved (not pushed
+  yet, or already merged — check `git log origin/main` for its squash
+  commit first), fall back to `origin/main`: the dependency is either not
+  ready or already integrated there.
+- Otherwise, branch from latest `origin/main`, named `claude/CLU-NNN-short-slug`.
   *(The `claude/` prefix keeps this compatible with Claude Code Routines,
   which by default can only push to `claude/`-prefixed branches.)*
 - Implement the acceptance criteria. Add or update tests when the change
@@ -86,7 +94,11 @@ plainly in the PR.
 
 ## 6. Ship
 
-Push and open a PR with `gh pr create`. The description must include:
+Push and open a PR with `gh pr create`. If this issue was stacked (per step
+4), pass `--base <the branch you branched from>` so the PR targets that
+branch, not `main` — this is what makes it a stacked PR. GitHub retargets it
+to `main` automatically once the base branch merges. The description must
+include:
 
 - What changed and why
 - `Closes CLU-NNN`

@@ -19,18 +19,18 @@ Living progress-context doc. Update this whenever a phase completes or scope cha
 
 All backed by pytest (52 passing as of 2026-08-09) and `tsc --noEmit` clean.
 
-## Phase 0–1 — Stabilization `[~]`
+## Phase 0–1 — Stabilization `[x]` done (2026-08-09)
 
 First real on-device test (2026-08-09, EAS dev-client build on Android) surfaced gaps beyond what pytest/tsc could catch. Audited every router + every prior loop's non-goals; found:
 
-| Issue | Gap | Why it matters | Status |
-|---|---|---|---|
-| CLU-12 (Loop 8) | ChecklistItem↔InventoryItem link never wired up despite FK existing since Loop 1 | Planner and Inventory pack status fully disconnected | `[ ]` filed, `agent-ready`, not built |
-| CLU-13 (Loop 9) | No Google Maps Android API key configured | **Confirmed crash** on Active Tracking; Transit unverified but same risk | `[x]` **done** — used a free no-billing Google Maps Demo Key (see note below), EAS dev-client rebuilt, both maps confirmed rendering on-device (map tiles render black under the demo key — cosmetic, not a crash; app's own markers/circles/overlays are unaffected) |
-| CLU-14 (Loop 10) | No `DELETE` on ChecklistItem / InventoryItem | Items are permanent once added | `[ ]` filed, `agent-ready`, not built |
-| CLU-15 (Loop 11) | No `PATCH`/`DELETE` on GeofenceTrigger | Triggers can't be deactivated or removed from the app once created | `[ ]` filed, `agent-ready`, not built |
+| Issue | Gap | Status |
+|---|---|---|
+| CLU-12 (Loop 8) | ChecklistItem↔InventoryItem link | `[x]` done — merged #8 |
+| CLU-13 (Loop 9) | Google Maps Android API key | `[x]` done — merged directly (10fb580) |
+| CLU-14 (Loop 10) | DELETE on ChecklistItem / InventoryItem | `[x]` done — merged #9 |
+| CLU-15 (Loop 11) | PATCH/DELETE on GeofenceTrigger | `[x]` done — merged #10 |
 
-CLU-12/14/15 are all labeled `agent-ready` and queued for the `clutch-build` loop — independent of each other, any order.
+Verified on `main` post-merge: 64 pytest passing (up from 52), `tsc --noEmit` clean.
 
 **Note on the Maps key:** used Google's free "Demo Key" (`mapsplatform.google.com/maps-demo-key`) — no billing account, no credit card, works for Maps SDK for Android specifically. Dev/testing only (daily quota, not for production) — revisit with a real billing-backed key only when this app is heading toward real users. Key lives in `app/app.json` under `expo.android.config.googleMaps.apiKey`.
 
@@ -42,31 +42,45 @@ Mockups show: 3-screen onboarding (Welcome/Location/Notifications), a new 5th "H
 
 Home introduces two concepts that don't exist in the data model yet: a **Trip** (multi-trip selector — "Tokyo / Lisbon / +") and a persisted **alert/event log** ("Entered Shinjuku Ward · 5:41 AM"). Both are new backend entities, not styling.
 
-## Phase 2–6 — Redesign `[ ]` (blocked on Phase 0–1)
+## Phase 2–6 — Redesign `[~]` in progress
+
+All issues filed 2026-08-09. None labeled `agent-ready` yet — apply the label yourself when ready to build each one.
+
+| Issue | Loop | Phase | Stacking | Status |
+|---|---|---|---|---|
+| CLU-16 | 12 | Reskin | independent, off `main` | `[ ]` filed |
+| CLU-17 | 13 | Trip data model | independent, off `main` | `[ ]` filed |
+| CLU-18 | 14 | Alert/event log | **stacked on CLU-17's branch** | `[ ]` filed |
+| CLU-19 | 15 | Home dashboard | **stacked on CLU-18's branch** (→ CLU-17 transitively) | `[ ]` filed |
+| CLU-20 | 16 | Onboarding | independent, off `main` (ideally after CLU-16 merges, not required) | `[ ]` filed |
 
 ```
-Phase 2 (reskin) ── establishes shared style tokens
+CLU-16 (reskin) ── independent, own branch off main
+
+CLU-17 (trip model) ── independent, own branch off main
         │
-        ▼
-Phase 3 (trip model) ──┐
-Phase 4 (event log) ───┤  can overlap, both backend-first
-        │              │
-        └──────┬───────┘
-               ▼
-        Phase 5 (Home dashboard)
+        ▼  stacked (same files: models.py, schemas.py)
+CLU-18 (event log)
+        │
+        ▼  stacked (needs both 17 + 18's endpoints)
+CLU-19 (Home dashboard)
 
-Phase 6 (onboarding) — no dependencies, can slot in anytime after Phase 2
+CLU-20 (onboarding) ── independent, own branch off main
 ```
 
-**Phase 2 — Visual reskin.** Restyle Plan/Go/Track/Pack to the new visual system (shared theme constants: colors/radii/spacing/typography), rename tabs, zero behavior change. Open gap: mockups only show Home + Plan + onboarding — Transit/Active Tracking's own internals (map layout, trigger list, modals) have no reference mockup, will need extrapolation and a review pass before Phase 5 locks it in.
+**Why CLU-17→18→19 are stacked, not just sequential:** CLU-17 and CLU-18 both touch `server/app/models.py` and `server/app/schemas.py` — building both off `main` in parallel guarantees a merge conflict on whichever lands second. CLU-19 (Home) is a pure aggregator of both and literally cannot function without both. Stacking lets CLU-18's build start without waiting for CLU-17 to merge first, while still avoiding the file collision. Mechanics: each stacked issue's description has a `Base branch:` note; `clutch-build` (edited today, see `.claude/skills/clutch-build/SKILL.md` step 4/6) resolves the actual branch for that referenced issue and branches from it instead of `origin/main`, then opens its PR with `--base <that branch>` instead of `main`. When the bottom PR merges, GitHub retargets the next one's base to `main` automatically.
 
-**Phase 3 — Trip data model** (highest risk/effort). New `trips` table; nullable `trip_id` FK added to `checklist_items`, `inventory_items`, `saved_destinations`, `geofence_triggers`; migrate existing rows onto an auto-created "Default Trip"; scope all list endpoints by `trip_id`; frontend trip-switcher shared across all 4 screens. Touches every existing router and screen — split into backend-scoping + frontend-switcher sub-loops if it proves too large for one pass.
+**Practical order to actually build in:** CLU-16 and CLU-17 can run in either order or even "simultaneously" (two separate loop passes, two separate branches, both off `main`) since they don't touch overlapping files. CLU-18 should not start until CLU-17's branch exists (even if unmerged) for the loop to stack on. CLU-19 should not start until CLU-18's branch exists. CLU-20 has no constraint.
 
-**Phase 4 — Alert/event log.** New `geofence_events` table (trigger_id, fired_at, direction); Active Tracking POSTs an event each time it fires a local notification; `GET /geofence-events` (latest-first) powers Home's "Latest Alert" card.
+**Phase 2 — Visual reskin (CLU-16).** Restyle Plan/Go/Track/Pack to the new visual system (shared theme constants: colors/radii/spacing/typography), rename tabs, zero behavior change. Open gap: mockups only show Home + Plan + onboarding — Transit/Active Tracking's own internals (map layout, trigger list, modals) have no reference mockup, will need extrapolation and a review pass before Phase 5 locks it in.
 
-**Phase 5 — Home dashboard.** New 5th tab; depends on Phase 3 + 4. Weather card (current trip's location), checklist/packing progress rings (current trip's data), "Up Next" nearest destination (reuses existing `/saved-destinations/{id}/distance`), "Latest Alert" (Phase 4).
+**Phase 3 — Trip data model (CLU-17).** New `trips` table; nullable `trip_id` FK added to `checklist_items`, `inventory_items`, `saved_destinations`, `geofence_triggers`, additive/backward-compatible (`?tripId=` opt-in filter, no forced backfill); frontend trip-switcher shared across all 4 screens.
 
-**Phase 6 — Onboarding.** 3-screen first-run flow, shown once, replacing the ad-hoc permission prompts currently scattered across Planner and Active Tracking. No dependencies.
+**Phase 4 — Alert/event log (CLU-18, stacked on CLU-17).** New `geofence_events` table (trigger_id, fired_at, direction); Active Tracking POSTs an event each time it fires a local notification; `GET /geofence-events` (latest-first) powers Home's "Latest Alert" card.
+
+**Phase 5 — Home dashboard (CLU-19, stacked on CLU-18).** New 5th tab. Weather card (current trip's location), checklist/packing progress rings (current trip's data), "Up Next" nearest destination (reuses existing `/saved-destinations/{id}/distance`), "Latest Alert" (Phase 4).
+
+**Phase 6 — Onboarding (CLU-20).** 3-screen first-run flow, shown once, replacing the ad-hoc permission prompts currently scattered across Planner and Active Tracking. No dependencies.
 
 ## Known risks
 
