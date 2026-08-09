@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import MapView, { Circle, LatLng, Marker } from 'react-native-maps';
 
+import TripSwitcher from '../components/TripSwitcher';
+import { useTripContext } from '../context/TripContext';
 import type { GeofenceTrigger, GeofenceTriggerType } from '../types/models';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
@@ -46,6 +48,8 @@ function haversineDistanceMeters(a: LatLng, b: LatLng): number {
 }
 
 export default function ActiveTrackingScreen() {
+  const { currentTripId } = useTripContext();
+
   const [currentLocation, setCurrentLocation] = useState<LatLng | null>(null);
   const [trackingStatus, setTrackingStatus] = useState<TrackingStatus>('checking');
 
@@ -73,7 +77,11 @@ export default function ActiveTrackingScreen() {
 
     async function loadTriggers() {
       try {
-        const response = await fetch(`${API_URL}/geofence-triggers`);
+        const url =
+          currentTripId !== null
+            ? `${API_URL}/geofence-triggers?tripId=${currentTripId}`
+            : `${API_URL}/geofence-triggers`;
+        const response = await fetch(url);
         if (!response.ok) throw new Error('geofence-triggers request failed');
         const data: GeofenceTrigger[] = await response.json();
         if (!cancelled) {
@@ -92,7 +100,7 @@ export default function ActiveTrackingScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [currentTripId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -275,6 +283,7 @@ export default function ActiveTrackingScreen() {
           radiusMeters: radiusNumber,
           triggerType: modalType,
           notificationMessage: modalMessage.trim(),
+          ...(currentTripId !== null ? { tripId: currentTripId } : {}),
         }),
       });
       if (!response.ok) throw new Error('create request failed');
@@ -295,6 +304,10 @@ export default function ActiveTrackingScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.tripSwitcherWrapper}>
+        <TripSwitcher />
+      </View>
+
       <View style={styles.mapSection}>
         <MapView
           style={styles.map}
@@ -515,6 +528,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingTop: 60,
+  },
+  tripSwitcherWrapper: {
+    paddingHorizontal: 16,
+    marginBottom: 12,
   },
   mapSection: {
     height: 280,

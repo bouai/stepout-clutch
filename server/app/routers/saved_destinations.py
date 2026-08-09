@@ -35,8 +35,14 @@ def _initial_bearing_degrees(lat1: float, lon1: float, lat2: float, lon2: float)
 
 
 @router.get("", response_model=list[schemas.SavedDestination])
-def list_saved_destinations(db: Session = Depends(get_db)):
-    return db.query(models.SavedDestination).all()
+def list_saved_destinations(
+    trip_id: int | None = Query(default=None, alias="tripId"),
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.SavedDestination)
+    if trip_id is not None:
+        query = query.filter(models.SavedDestination.trip_id == trip_id)
+    return query.all()
 
 
 @router.get("/{destination_id}", response_model=schemas.SavedDestination)

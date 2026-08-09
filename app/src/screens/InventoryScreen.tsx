@@ -12,6 +12,8 @@ import {
   View,
 } from 'react-native';
 
+import TripSwitcher from '../components/TripSwitcher';
+import { useTripContext } from '../context/TripContext';
 import type { InventoryCategory, InventoryItem } from '../types/models';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
@@ -37,6 +39,8 @@ async function patchInventoryItem(
 }
 
 export default function InventoryScreen() {
+  const { currentTripId } = useTripContext();
+
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
@@ -53,7 +57,11 @@ export default function InventoryScreen() {
 
       async function loadItems() {
         try {
-          const response = await fetch(`${API_URL}/inventory-items`);
+          const url =
+            currentTripId !== null
+              ? `${API_URL}/inventory-items?tripId=${currentTripId}`
+              : `${API_URL}/inventory-items`;
+          const response = await fetch(url);
           if (!response.ok) throw new Error('inventory request failed');
           const data: InventoryItem[] = await response.json();
           if (!cancelled) {
@@ -75,7 +83,7 @@ export default function InventoryScreen() {
       return () => {
         cancelled = true;
       };
-    }, [])
+    }, [currentTripId])
   );
 
   function clearRowError(itemId: number) {
@@ -169,7 +177,11 @@ export default function InventoryScreen() {
       const response = await fetch(`${API_URL}/inventory-items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: trimmed, category: modalCategory }),
+        body: JSON.stringify({
+          name: trimmed,
+          category: modalCategory,
+          ...(currentTripId !== null ? { tripId: currentTripId } : {}),
+        }),
       });
       if (!response.ok) throw new Error('create request failed');
       const created: InventoryItem = await response.json();
@@ -192,6 +204,8 @@ export default function InventoryScreen() {
           <Text style={styles.addButton}>+ Add Item</Text>
         </Pressable>
       </View>
+
+      <TripSwitcher />
 
       {loading && <ActivityIndicator />}
       {!loading && items.length === 0 && (
