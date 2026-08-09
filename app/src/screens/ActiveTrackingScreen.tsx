@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from 'react';
@@ -14,6 +15,7 @@ import {
 import MapView, { Circle, LatLng, Marker } from 'react-native-maps';
 
 import type { GeofenceTrigger, GeofenceTriggerType } from '../types/models';
+import { cardShadow, colors, radius, spacing } from '../theme';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 const DEFAULT_LATITUDE = 28.6139;
@@ -294,8 +296,12 @@ export default function ActiveTrackingScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.mapSection}>
+    <LinearGradient
+      colors={[colors.gradientStart, colors.gradientEnd]}
+      style={styles.container}
+    >
+      <View style={styles.mapCard}>
+        <View style={styles.mapSection}>
         <MapView
           style={styles.map}
           region={{
@@ -356,23 +362,25 @@ export default function ActiveTrackingScreen() {
             </>
           )}
         </MapView>
-
-        {trackingStatus === 'checking' && (
-          <Text style={styles.note}>Checking tracking status…</Text>
-        )}
-        {trackingStatus === 'active' && (
-          <Text style={styles.note} testID="tracking-status">
-            Tracking: active
-          </Text>
-        )}
-        {trackingStatus === 'unavailable' && (
-          <Text style={styles.note} testID="tracking-status">
-            Tracking unavailable
-          </Text>
-        )}
+        </View>
       </View>
 
-      <View style={styles.listSection}>
+      {trackingStatus === 'checking' && (
+        <Text style={styles.note}>Checking tracking status…</Text>
+      )}
+      {trackingStatus === 'active' && (
+        <Text style={styles.note} testID="tracking-status">
+          Tracking: active
+        </Text>
+      )}
+      {trackingStatus === 'unavailable' && (
+        <Text style={styles.note} testID="tracking-status">
+          Tracking unavailable
+        </Text>
+      )}
+
+      <View style={[styles.card, styles.listCard]}>
+        <View style={styles.listSection}>
         {listStatus === 'loading' && <ActivityIndicator />}
         {listStatus === 'error' && (
           <Text testID="triggers-error">Could not load triggers</Text>
@@ -417,6 +425,7 @@ export default function ActiveTrackingScreen() {
               )}
             </View>
           ))}
+        </View>
       </View>
 
       <Modal visible={pendingLocation !== null} transparent animationType="fade">
@@ -507,7 +516,7 @@ export default function ActiveTrackingScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -515,6 +524,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingTop: 60,
+    paddingHorizontal: 16,
+    paddingBottom: 120,
+  },
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    ...cardShadow,
+  },
+  mapCard: {
+    borderRadius: radius.card,
+    overflow: 'hidden',
+    marginBottom: spacing.sm,
+    ...cardShadow,
+  },
+  listCard: {
+    flex: 1,
   },
   mapSection: {
     height: 280,
@@ -524,14 +551,12 @@ const styles = StyleSheet.create({
   },
   note: {
     fontSize: 12,
-    color: '#666',
-    paddingHorizontal: 16,
+    color: colors.textOnGradientMuted,
     paddingTop: 4,
+    marginBottom: spacing.sm,
   },
   listSection: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 12,
   },
   triggerRow: {
     paddingVertical: 10,
@@ -563,8 +588,8 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
     padding: 16,
     gap: 12,
   },
