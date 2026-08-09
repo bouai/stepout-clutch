@@ -45,8 +45,17 @@ issue's scope — only the user can, by editing the issue.
 
 ## 1. Pick
 
-List Linear issues labeled `agent-ready` that are unassigned, sorted by
-priority. If the queue is empty, say so and end the pass. Do not invent work.
+List Linear issues labeled `agent-ready` that are unassigned. For each,
+check its `blockedBy` relations: if any blocking issue is not in a
+completed state, this issue is not eligible yet — skip it, regardless of
+its label or priority. (This is what makes stacked PRs safe even if every
+issue in a dependency chain is marked `agent-ready` at once: a blocked
+issue simply never gets picked until its blocker is Done.) Among what's
+left, sort by priority and take the top one. If nothing is eligible — either
+because none are `agent-ready` or everything eligible is still blocked —
+say so and end the pass. Do not invent work, and do not work around a
+blocker by picking a different issue that depends on the same unmerged
+branch some other way.
 
 > **If running under `/goal`:** print the current queue state at the end of
 > this pass (e.g. "agent-ready queue: 2 remaining, 3 PRs open") — the goal
