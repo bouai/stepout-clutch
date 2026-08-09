@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -8,8 +8,14 @@ router = APIRouter(prefix="/checklist-items", tags=["checklist-items"])
 
 
 @router.get("", response_model=list[schemas.ChecklistItem])
-def list_checklist_items(db: Session = Depends(get_db)):
-    return db.query(models.ChecklistItem).all()
+def list_checklist_items(
+    trip_id: int | None = Query(default=None, alias="tripId"),
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.ChecklistItem)
+    if trip_id is not None:
+        query = query.filter(models.ChecklistItem.trip_id == trip_id)
+    return query.all()
 
 
 @router.get("/{item_id}", response_model=schemas.ChecklistItem)

@@ -210,3 +210,21 @@ def test_delete_removes_item(client):
 def test_delete_missing_returns_404(client):
     response = client.delete("/checklist-items/999")
     assert response.status_code == 404
+
+
+def test_list_filters_by_trip_id(client):
+    trip = client.post("/trips", json={"name": "Tokyo"}).json()
+    client.post(
+        "/checklist-items",
+        json={"label": "Tokyo item", "category": "other", "tripId": trip["id"]},
+    )
+    client.post("/checklist-items", json={"label": "Untagged item", "category": "other"})
+
+    scoped_response = client.get("/checklist-items", params={"tripId": trip["id"]})
+    assert scoped_response.status_code == 200
+    scoped = scoped_response.json()
+    assert len(scoped) == 1
+    assert scoped[0]["label"] == "Tokyo item"
+
+    unfiltered_response = client.get("/checklist-items")
+    assert len(unfiltered_response.json()) == 2

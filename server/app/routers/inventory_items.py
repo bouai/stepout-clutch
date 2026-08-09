@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -8,8 +8,14 @@ router = APIRouter(prefix="/inventory-items", tags=["inventory-items"])
 
 
 @router.get("", response_model=list[schemas.InventoryItem])
-def list_inventory_items(db: Session = Depends(get_db)):
-    return db.query(models.InventoryItem).all()
+def list_inventory_items(
+    trip_id: int | None = Query(default=None, alias="tripId"),
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.InventoryItem)
+    if trip_id is not None:
+        query = query.filter(models.InventoryItem.trip_id == trip_id)
+    return query.all()
 
 
 @router.get("/{item_id}", response_model=schemas.InventoryItem)

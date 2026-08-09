@@ -44,15 +44,27 @@ Home introduces two concepts that don't exist in the data model yet: a **Trip** 
 
 ## Phase 2–6 — Redesign `[~]` in progress
 
-All issues filed 2026-08-09. None labeled `agent-ready` yet — apply the label yourself when ready to build each one.
+All issues filed 2026-08-09, all labeled `agent-ready` the same day and run through `/loop /clutch-build` + `/loop /clutch-review`.
 
 | Issue | Loop | Phase | Stacking | Status |
 |---|---|---|---|---|
-| CLU-16 | 12 | Reskin | independent, off `main` | `[ ]` filed |
-| CLU-17 | 13 | Trip data model | independent, off `main` | `[ ]` filed |
-| CLU-18 | 14 | Alert/event log | **stacked on CLU-17's branch** | `[ ]` filed |
-| CLU-19 | 15 | Home dashboard | **stacked on CLU-18's branch** (→ CLU-17 transitively) | `[ ]` filed |
-| CLU-20 | 16 | Onboarding | independent, off `main` (ideally after CLU-16 merges, not required) | `[ ]` filed |
+| CLU-16 | 12 | Reskin | independent, off `main` | `[x]` done — merged #11 |
+| CLU-17 | 13 | Trip data model | independent, off `main` | `[~]` PR #12 open, `loop-approved`, conflict resolved (see incident below) — awaiting merge |
+| CLU-18 | 14 | Alert/event log | **stacked on CLU-17's branch** | `[ ]` blocked on CLU-17 merging |
+| CLU-19 | 15 | Home dashboard | **stacked on CLU-18's branch** (→ CLU-17 transitively) | `[ ]` blocked on CLU-18 merging |
+| CLU-20 | 16 | Onboarding | independent, off `main` | `[~]` PR #13 open — awaiting review/merge |
+
+### Incident: CLU-16/CLU-17 merge conflict (2026-08-09)
+
+CLU-16 and CLU-17 were both marked "independent" and built in parallel off the same `main`. Both touch all 4 screen files (`PlannerScreen.tsx`, `InventoryScreen.tsx`, `TransitScreen.tsx`, `ActiveTrackingScreen.tsx`) — CLU-16 for styling, CLU-17 for trip-scoped data fetching. The stacking analysis when Phase 2–6 was planned only cross-checked file overlap within the CLU-17→18→19 *backend* chain (`models.py`/`schemas.py`); it never checked CLU-16 against CLU-17, even though both issues' own "Relevant files" lists named the same 4 screens. When CLU-16 merged first (#11), CLU-17's PR (#12) went from clean to `CONFLICTING` with zero new commits of its own — and `clutch-review` had already labeled it `loop-approved` before the conflict existed, with no mechanism to notice the verdict went stale.
+
+Fixed by hand: merged `origin/main` into `claude/CLU-17-trip-data-model`, manually reconciled all 4 screens (CLU-16's `LinearGradient`/card/theme structure + CLU-17's `TripSwitcher`/`useTripContext`/`?tripId=` logic, nothing dropped from either side), ran `npx tsc --noEmit` (clean) and `pytest` (72/72), pushed. PR #12 is `MERGEABLE`/`CLEAN` again.
+
+Two process fixes applied same day:
+1. **`clutch-build`** (unchanged this time — the gap was in planning, not execution).
+2. **`clutch-review`** ([SKILL.md](.claude/skills/clutch-review/SKILL.md) step 1): now re-checks `mergeable` even when a PR's head SHA is unchanged, since a `loop-approved` verdict can go stale purely from *another* PR merging into the same base — not just from new commits on the PR itself.
+
+**Lesson for planning future phases:** before declaring two issues "independent," diff their `Relevant files` lists against each other, not just against the phase each is conceptually tied to. Two issues can share zero *concepts* and still collide on every file that matters.
 
 ```
 CLU-16 (reskin) ── independent, own branch off main

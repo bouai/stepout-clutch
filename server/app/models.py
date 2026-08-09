@@ -35,6 +35,18 @@ class ChecklistWeatherCondition(str, enum.Enum):
     CLEAR = "clear"
 
 
+class Trip(Base):
+    __tablename__ = "trips"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
 class ChecklistItem(Base):
     __tablename__ = "checklist_items"
 
@@ -57,6 +69,9 @@ class ChecklistItem(Base):
     inventory_item_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("inventory_items.id"), nullable=True
     )
+    trip_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("trips.id"), nullable=True
+    )
 
 
 class InventoryItem(Base):
@@ -69,6 +84,9 @@ class InventoryItem(Base):
     )
     quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     is_packed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    trip_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("trips.id"), nullable=True
+    )
 
 
 class GeofenceTrigger(Base):
@@ -84,6 +102,9 @@ class GeofenceTrigger(Base):
     )
     notification_message: Mapped[str] = mapped_column(String, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    trip_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("trips.id"), nullable=True
+    )
 
 
 class SavedDestination(Base):
@@ -93,3 +114,6 @@ class SavedDestination(Base):
     label: Mapped[str] = mapped_column(String, nullable=False)
     latitude: Mapped[float] = mapped_column(Float, nullable=False)
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    trip_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("trips.id"), nullable=True
+    )

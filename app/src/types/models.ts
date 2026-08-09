@@ -16,6 +16,14 @@ export type WeatherCondition =
   | 'wind'
   | 'clear';
 
+export interface Trip {
+  id: number;
+  name: string;
+  latitude: number | null;
+  longitude: number | null;
+  createdAt: string;
+}
+
 export interface ChecklistItem {
   id: number;
   label: string;
@@ -26,6 +34,7 @@ export interface ChecklistItem {
   sortOrder: number;
   createdAt: string;
   inventoryItemId: number | null;
+  tripId: number | null;
 }
 
 export interface ChecklistItemUpdate {
@@ -36,6 +45,7 @@ export interface ChecklistItemUpdate {
   weatherCondition?: WeatherCondition | null;
   sortOrder?: number;
   inventoryItemId?: number | null;
+  tripId?: number | null;
 }
 
 export interface Weather {
@@ -51,6 +61,7 @@ export interface InventoryItem {
   category: InventoryCategory;
   quantity: number;
   isPacked: boolean;
+  tripId: number | null;
 }
 
 export interface GeofenceTrigger {
@@ -62,6 +73,7 @@ export interface GeofenceTrigger {
   triggerType: GeofenceTriggerType;
   notificationMessage: string;
   isActive: boolean;
+  tripId: number | null;
 }
 
 export interface SavedDestination {
@@ -69,6 +81,7 @@ export interface SavedDestination {
   label: string;
   latitude: number;
   longitude: number;
+  tripId: number | null;
 }
 
 export interface Distance {

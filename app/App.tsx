@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import { TripProvider } from './src/context/TripContext';
 import RootNavigator from './src/navigation/RootNavigator';
 import OnboardingFlow from './src/screens/onboarding/OnboardingFlow';
 
@@ -54,7 +55,11 @@ export default function App() {
     return <OnboardingFlow onComplete={completeOnboarding} />;
   }
 
-  return <RootNavigator />;
+  return (
+    <TripProvider>
+      <RootNavigator />
+    </TripProvider>
+  );
 }
 
 const styles = StyleSheet.create({

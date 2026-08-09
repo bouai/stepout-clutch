@@ -85,3 +85,29 @@ def test_delete_removes_destination(client):
 def test_delete_missing_returns_404(client):
     response = client.delete("/saved-destinations/999")
     assert response.status_code == 404
+
+
+def test_list_filters_by_trip_id(client):
+    trip = client.post("/trips", json={"name": "Tokyo"}).json()
+    client.post(
+        "/saved-destinations",
+        json={
+            "label": "Tokyo Tower",
+            "latitude": 35.6586,
+            "longitude": 139.7454,
+            "tripId": trip["id"],
+        },
+    )
+    client.post(
+        "/saved-destinations",
+        json={"label": "Untagged place", "latitude": 28.6139, "longitude": 77.209},
+    )
+
+    scoped_response = client.get("/saved-destinations", params={"tripId": trip["id"]})
+    assert scoped_response.status_code == 200
+    scoped = scoped_response.json()
+    assert len(scoped) == 1
+    assert scoped[0]["label"] == "Tokyo Tower"
+
+    unfiltered_response = client.get("/saved-destinations")
+    assert len(unfiltered_response.json()) == 2
