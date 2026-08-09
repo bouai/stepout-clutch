@@ -137,6 +137,17 @@ export default function ActiveTrackingScreen() {
               },
               trigger: null,
             });
+            fetch(`${API_URL}/geofence-events`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                triggerId: trigger.id,
+                direction: transitionType,
+              }),
+            }).catch(() => {
+              // Fire-and-forget: event logging failure must never affect the
+              // notification or be surfaced to the user.
+            });
           }
         }
       }

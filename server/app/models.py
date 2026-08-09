@@ -117,3 +117,18 @@ class SavedDestination(Base):
     trip_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("trips.id"), nullable=True
     )
+
+
+class GeofenceEvent(Base):
+    __tablename__ = "geofence_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    trigger_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("geofence_triggers.id"), nullable=False
+    )
+    direction: Mapped[GeofenceTriggerType] = mapped_column(
+        Enum(GeofenceTriggerType), nullable=False
+    )
+    fired_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )

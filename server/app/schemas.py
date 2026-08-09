@@ -134,6 +134,20 @@ class SavedDestination(SavedDestinationBase):
     id: int
 
 
+class GeofenceEventBase(CamelModel):
+    trigger_id: int
+    direction: GeofenceTriggerType
+
+
+class GeofenceEventCreate(GeofenceEventBase):
+    pass
+
+
+class GeofenceEvent(GeofenceEventBase):
+    id: int
+    fired_at: datetime
+
+
 class Distance(CamelModel):
     distance_km: float
     bearing_degrees: int
