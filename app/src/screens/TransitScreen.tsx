@@ -1,3 +1,4 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 import {
@@ -14,6 +15,7 @@ import {
 import MapView, { LatLng, Marker, Polyline } from 'react-native-maps';
 
 import type { Distance, SavedDestination } from '../types/models';
+import { cardShadow, colors, radius, spacing } from '../theme';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 const DEFAULT_LATITUDE = 28.6139;
@@ -226,8 +228,12 @@ export default function TransitScreen() {
   const canSubmitCreate = createLabel.trim().length > 0 && !createSubmitting;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.mapSection}>
+    <LinearGradient
+      colors={[colors.gradientStart, colors.gradientEnd]}
+      style={styles.container}
+    >
+      <View style={styles.mapCard}>
+        <View style={styles.mapSection}>
         {currentLocation ? (
           <MapView
             style={styles.map}
@@ -276,61 +282,64 @@ export default function TransitScreen() {
         ) : (
           <ActivityIndicator style={styles.map} />
         )}
-        {usedDefaultLocation && (
-          <Text style={styles.note}>Using default location</Text>
-        )}
+        </View>
       </View>
+      {usedDefaultLocation && (
+        <Text style={styles.note}>Using default location</Text>
+      )}
 
-      <View style={styles.listSection}>
-        {listStatus === 'loading' && <ActivityIndicator />}
-        {listStatus === 'error' && (
-          <Text testID="destinations-error">Could not load saved destinations</Text>
-        )}
-        {listStatus === 'ready' && destinations.length === 0 && (
-          <Text testID="destinations-empty">No saved destinations yet</Text>
-        )}
-        {listStatus === 'ready' && destinations.length > 0 && (
-          <FlatList
-            data={destinations}
-            keyExtractor={(item) => String(item.id)}
-            renderItem={({ item }) => (
-              <View style={styles.destinationRow}>
-                <View style={styles.destinationRowMain}>
-                  <Pressable
-                    style={styles.destinationLabel}
-                    onPress={() => selectDestination(item)}
-                  >
-                    <Text
-                      style={
-                        selected?.id === item.id
-                          ? styles.destinationSelected
-                          : undefined
-                      }
+      <View style={[styles.card, styles.listCard]}>
+        <View style={styles.listSection}>
+          {listStatus === 'loading' && <ActivityIndicator />}
+          {listStatus === 'error' && (
+            <Text testID="destinations-error">Could not load saved destinations</Text>
+          )}
+          {listStatus === 'ready' && destinations.length === 0 && (
+            <Text testID="destinations-empty">No saved destinations yet</Text>
+          )}
+          {listStatus === 'ready' && destinations.length > 0 && (
+            <FlatList
+              data={destinations}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item }) => (
+                <View style={styles.destinationRow}>
+                  <View style={styles.destinationRowMain}>
+                    <Pressable
+                      style={styles.destinationLabel}
+                      onPress={() => selectDestination(item)}
                     >
-                      {item.label}
+                      <Text
+                        style={
+                          selected?.id === item.id
+                            ? styles.destinationSelected
+                            : undefined
+                        }
+                      >
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => confirmDelete(item)}
+                      testID={`delete-${item.id}`}
+                      hitSlop={8}
+                    >
+                      <Text style={styles.deleteButton}>Delete</Text>
+                    </Pressable>
+                  </View>
+                  {rowErrors[item.id] && (
+                    <Text style={styles.rowError} testID={`row-error-${item.id}`}>
+                      {rowErrors[item.id]}
                     </Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={() => confirmDelete(item)}
-                    testID={`delete-${item.id}`}
-                    hitSlop={8}
-                  >
-                    <Text style={styles.deleteButton}>Delete</Text>
-                  </Pressable>
+                  )}
                 </View>
-                {rowErrors[item.id] && (
-                  <Text style={styles.rowError} testID={`row-error-${item.id}`}>
-                    {rowErrors[item.id]}
-                  </Text>
-                )}
-              </View>
-            )}
-          />
-        )}
+              )}
+            />
+          )}
+        </View>
       </View>
 
       {selected && (
-        <View style={styles.distanceSection}>
+        <View style={[styles.card, styles.distanceSection]}>
           {distanceStatus === 'loading' && <ActivityIndicator />}
           {distanceStatus === 'ready' && distance && (
             <Text testID="distance-summary">
@@ -391,7 +400,7 @@ export default function TransitScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </LinearGradient>
   );
 }
 
@@ -399,6 +408,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingTop: 60,
+    paddingHorizontal: 16,
+    paddingBottom: 120,
+  },
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    ...cardShadow,
+  },
+  mapCard: {
+    borderRadius: radius.card,
+    overflow: 'hidden',
+    marginBottom: spacing.sm,
+    ...cardShadow,
+  },
+  listCard: {
+    flex: 1,
   },
   mapSection: {
     height: 280,
@@ -408,14 +435,12 @@ const styles = StyleSheet.create({
   },
   note: {
     fontSize: 12,
-    color: '#666',
-    paddingHorizontal: 16,
+    color: colors.textOnGradientMuted,
     paddingTop: 4,
+    marginBottom: spacing.sm,
   },
   listSection: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 12,
   },
   destinationRow: {
     paddingVertical: 10,
@@ -442,10 +467,7 @@ const styles = StyleSheet.create({
     color: '#c0392b',
     marginTop: 4,
   },
-  distanceSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
+  distanceSection: {},
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -453,8 +475,8 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
     padding: 16,
     gap: 12,
   },
