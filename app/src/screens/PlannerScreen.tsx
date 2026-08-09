@@ -14,6 +14,8 @@ import {
   View,
 } from 'react-native';
 
+import TripSwitcher from '../components/TripSwitcher';
+import { useTripContext } from '../context/TripContext';
 import type {
   ChecklistCategory,
   ChecklistItem,
@@ -78,6 +80,8 @@ async function patchChecklistItem(
 }
 
 export default function PlannerScreen() {
+  const { currentTripId } = useTripContext();
+
   const [weather, setWeather] = useState<Weather | null>(null);
   const [weatherStatus, setWeatherStatus] = useState<WeatherStatus>('loading');
   const [usedDefaultLocation, setUsedDefaultLocation] = useState(false);
@@ -137,7 +141,11 @@ export default function PlannerScreen() {
 
       async function loadChecklist() {
         try {
-          const response = await fetch(`${API_URL}/checklist-items`);
+          const url =
+            currentTripId !== null
+              ? `${API_URL}/checklist-items?tripId=${currentTripId}`
+              : `${API_URL}/checklist-items`;
+          const response = await fetch(url);
           if (!response.ok) throw new Error('checklist request failed');
           const data: ChecklistItem[] = await response.json();
           if (!cancelled) {
@@ -159,7 +167,7 @@ export default function PlannerScreen() {
       return () => {
         cancelled = true;
       };
-    }, [])
+    }, [currentTripId])
   );
 
   useFocusEffect(
@@ -168,7 +176,11 @@ export default function PlannerScreen() {
 
       async function loadInventory() {
         try {
-          const response = await fetch(`${API_URL}/inventory-items`);
+          const url =
+            currentTripId !== null
+              ? `${API_URL}/inventory-items?tripId=${currentTripId}`
+              : `${API_URL}/inventory-items`;
+          const response = await fetch(url);
           if (!response.ok) throw new Error('inventory request failed');
           const data: InventoryItem[] = await response.json();
           if (!cancelled) {
@@ -186,7 +198,7 @@ export default function PlannerScreen() {
       return () => {
         cancelled = true;
       };
-    }, [])
+    }, [currentTripId])
   );
 
   function clearRowError(itemId: number) {
@@ -330,6 +342,7 @@ export default function PlannerScreen() {
           ...(modalInventoryItemId !== null
             ? { inventoryItemId: modalInventoryItemId }
             : {}),
+          ...(currentTripId !== null ? { tripId: currentTripId } : {}),
         }),
       });
       if (!response.ok) throw new Error('create request failed');
@@ -351,6 +364,8 @@ export default function PlannerScreen() {
       style={styles.container}
     >
       <Text style={styles.title}>Planner</Text>
+
+      <TripSwitcher />
 
       <View style={styles.card}>
         <View style={styles.weatherSection}>

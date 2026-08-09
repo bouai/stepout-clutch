@@ -14,6 +14,8 @@ import {
 } from 'react-native';
 import MapView, { LatLng, Marker, Polyline } from 'react-native-maps';
 
+import TripSwitcher from '../components/TripSwitcher';
+import { useTripContext } from '../context/TripContext';
 import type { Distance, SavedDestination } from '../types/models';
 import { cardShadow, colors, radius, spacing } from '../theme';
 
@@ -55,6 +57,8 @@ async function resolveCoordinates(): Promise<{
 }
 
 export default function TransitScreen() {
+  const { currentTripId } = useTripContext();
+
   const [currentLocation, setCurrentLocation] = useState<{
     latitude: number;
     longitude: number;
@@ -97,7 +101,11 @@ export default function TransitScreen() {
 
     async function loadDestinations() {
       try {
-        const response = await fetch(`${API_URL}/saved-destinations`);
+        const url =
+          currentTripId !== null
+            ? `${API_URL}/saved-destinations?tripId=${currentTripId}`
+            : `${API_URL}/saved-destinations`;
+        const response = await fetch(url);
         if (!response.ok) throw new Error('saved-destinations request failed');
         const data: SavedDestination[] = await response.json();
         if (!cancelled) {
@@ -116,7 +124,7 @@ export default function TransitScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [currentTripId]);
 
   async function selectDestination(destination: SavedDestination) {
     setSelected(destination);
@@ -162,6 +170,7 @@ export default function TransitScreen() {
           label: trimmed,
           latitude: pendingLocation.latitude,
           longitude: pendingLocation.longitude,
+          ...(currentTripId !== null ? { tripId: currentTripId } : {}),
         }),
       });
       if (!response.ok) throw new Error('create request failed');
@@ -232,6 +241,10 @@ export default function TransitScreen() {
       colors={[colors.gradientStart, colors.gradientEnd]}
       style={styles.container}
     >
+      <View style={styles.tripSwitcherWrapper}>
+        <TripSwitcher />
+      </View>
+
       <View style={styles.mapCard}>
         <View style={styles.mapSection}>
         {currentLocation ? (
@@ -410,6 +423,9 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingHorizontal: 16,
     paddingBottom: 120,
+  },
+  tripSwitcherWrapper: {
+    marginBottom: spacing.sm,
   },
   card: {
     backgroundColor: colors.card,

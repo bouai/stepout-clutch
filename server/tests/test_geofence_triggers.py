@@ -104,3 +104,39 @@ def test_delete_removes_trigger(client):
 def test_delete_missing_returns_404(client):
     response = client.delete("/geofence-triggers/999")
     assert response.status_code == 404
+
+
+def test_list_filters_by_trip_id(client):
+    trip = client.post("/trips", json={"name": "Tokyo"}).json()
+    client.post(
+        "/geofence-triggers",
+        json={
+            "label": "Tokyo trigger",
+            "latitude": 28.6139,
+            "longitude": 77.209,
+            "radiusMeters": 100.0,
+            "triggerType": "enter",
+            "notificationMessage": "You are home",
+            "tripId": trip["id"],
+        },
+    )
+    client.post(
+        "/geofence-triggers",
+        json={
+            "label": "Untagged trigger",
+            "latitude": 28.6139,
+            "longitude": 77.209,
+            "radiusMeters": 100.0,
+            "triggerType": "enter",
+            "notificationMessage": "You are home",
+        },
+    )
+
+    scoped_response = client.get("/geofence-triggers", params={"tripId": trip["id"]})
+    assert scoped_response.status_code == 200
+    scoped = scoped_response.json()
+    assert len(scoped) == 1
+    assert scoped[0]["label"] == "Tokyo trigger"
+
+    unfiltered_response = client.get("/geofence-triggers")
+    assert len(unfiltered_response.json()) == 2

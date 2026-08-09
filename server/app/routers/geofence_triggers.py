@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -8,8 +8,14 @@ router = APIRouter(prefix="/geofence-triggers", tags=["geofence-triggers"])
 
 
 @router.get("", response_model=list[schemas.GeofenceTrigger])
-def list_geofence_triggers(db: Session = Depends(get_db)):
-    return db.query(models.GeofenceTrigger).all()
+def list_geofence_triggers(
+    trip_id: int | None = Query(default=None, alias="tripId"),
+    db: Session = Depends(get_db),
+):
+    query = db.query(models.GeofenceTrigger)
+    if trip_id is not None:
+        query = query.filter(models.GeofenceTrigger.trip_id == trip_id)
+    return query.all()
 
 
 @router.get("/{trigger_id}", response_model=schemas.GeofenceTrigger)

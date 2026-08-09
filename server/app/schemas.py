@@ -19,6 +19,21 @@ class CamelModel(BaseModel):
     )
 
 
+class TripBase(CamelModel):
+    name: str
+    latitude: float | None = None
+    longitude: float | None = None
+
+
+class TripCreate(TripBase):
+    pass
+
+
+class Trip(TripBase):
+    id: int
+    created_at: datetime
+
+
 class ChecklistItemBase(CamelModel):
     label: str
     category: ChecklistCategory
@@ -27,6 +42,7 @@ class ChecklistItemBase(CamelModel):
     weather_condition: ChecklistWeatherCondition | None = None
     sort_order: int = 0
     inventory_item_id: int | None = None
+    trip_id: int | None = None
 
 
 class ChecklistItemCreate(ChecklistItemBase):
@@ -46,6 +62,7 @@ class ChecklistItemUpdate(CamelModel):
     weather_condition: ChecklistWeatherCondition | None = None
     sort_order: int | None = None
     inventory_item_id: int | None = None
+    trip_id: int | None = None
 
 
 class InventoryItemBase(CamelModel):
@@ -53,6 +70,7 @@ class InventoryItemBase(CamelModel):
     category: InventoryCategory
     quantity: int = 1
     is_packed: bool = False
+    trip_id: int | None = None
 
 
 class InventoryItemCreate(InventoryItemBase):
@@ -68,6 +86,7 @@ class InventoryItemUpdate(CamelModel):
     category: InventoryCategory | None = None
     quantity: int | None = None
     is_packed: bool | None = None
+    trip_id: int | None = None
 
 
 class GeofenceTriggerBase(CamelModel):
@@ -78,6 +97,7 @@ class GeofenceTriggerBase(CamelModel):
     trigger_type: GeofenceTriggerType
     notification_message: str
     is_active: bool = True
+    trip_id: int | None = None
 
 
 class GeofenceTriggerCreate(GeofenceTriggerBase):
@@ -96,12 +116,14 @@ class GeofenceTriggerUpdate(CamelModel):
     trigger_type: GeofenceTriggerType | None = None
     notification_message: str | None = None
     is_active: bool | None = None
+    trip_id: int | None = None
 
 
 class SavedDestinationBase(CamelModel):
     label: str
     latitude: float
     longitude: float
+    trip_id: int | None = None
 
 
 class SavedDestinationCreate(SavedDestinationBase):
