@@ -11,7 +11,12 @@ import {
   View,
 } from 'react-native';
 
-import type { ChecklistCategory, ChecklistItem, Weather } from '../types/models';
+import type {
+  ChecklistCategory,
+  ChecklistItem,
+  InventoryItem,
+  Weather,
+} from '../types/models';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 const DEFAULT_LATITUDE = 28.6139;
@@ -75,6 +80,8 @@ export default function PlannerScreen() {
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
   const [checklistLoading, setChecklistLoading] = useState(true);
 
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [editingLabel, setEditingLabel] = useState('');
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
@@ -82,6 +89,9 @@ export default function PlannerScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalLabel, setModalLabel] = useState('');
   const [modalCategory, setModalCategory] = useState<ChecklistCategory | null>(null);
+  const [modalInventoryItemId, setModalInventoryItemId] = useState<number | null>(
+    null
+  );
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSubmitting, setModalSubmitting] = useState(false);
 
@@ -146,6 +156,31 @@ export default function PlannerScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadInventory() {
+      try {
+        const response = await fetch(`${API_URL}/inventory-items`);
+        if (!response.ok) throw new Error('inventory request failed');
+        const data: InventoryItem[] = await response.json();
+        if (!cancelled) {
+          setInventoryItems(data);
+        }
+      } catch {
+        if (!cancelled) {
+          setInventoryItems([]);
+        }
+      }
+    }
+
+    loadInventory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   function clearRowError(itemId: number) {
     setRowErrors((prev) => {
       if (!(itemId in prev)) return prev;
@@ -153,6 +188,13 @@ export default function PlannerScreen() {
       delete next[itemId];
       return next;
     });
+  }
+
+  function setLinkedInventoryPacked(inventoryItemId: number | null, isPacked: boolean) {
+    if (inventoryItemId === null) return;
+    setInventoryItems((prev) =>
+      prev.map((row) => (row.id === inventoryItemId ? { ...row, isPacked } : row))
+    );
   }
 
   async function toggleChecked(item: ChecklistItem) {
@@ -165,6 +207,7 @@ export default function PlannerScreen() {
         row.id === item.id ? { ...row, isChecked: nextChecked } : row
       )
     );
+    setLinkedInventoryPacked(item.inventoryItemId, nextChecked);
 
     try {
       await patchChecklistItem(item.id, { isChecked: nextChecked });
@@ -174,6 +217,7 @@ export default function PlannerScreen() {
           row.id === item.id ? { ...row, isChecked: previousChecked } : row
         )
       );
+      setLinkedInventoryPacked(item.inventoryItemId, previousChecked);
       setRowErrors((prev) => ({ ...prev, [item.id]: 'Could not save change' }));
     }
   }
@@ -212,6 +256,7 @@ export default function PlannerScreen() {
   function openAddModal() {
     setModalLabel('');
     setModalCategory(null);
+    setModalInventoryItemId(null);
     setModalError(null);
     setModalVisible(true);
   }
@@ -220,6 +265,7 @@ export default function PlannerScreen() {
     setModalVisible(false);
     setModalLabel('');
     setModalCategory(null);
+    setModalInventoryItemId(null);
     setModalError(null);
   }
 
@@ -234,7 +280,13 @@ export default function PlannerScreen() {
       const response = await fetch(`${API_URL}/checklist-items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: trimmed, category: modalCategory }),
+        body: JSON.stringify({
+          label: trimmed,
+          category: modalCategory,
+          ...(modalInventoryItemId !== null
+            ? { inventoryItemId: modalInventoryItemId }
+            : {}),
+        }),
       });
       if (!response.ok) throw new Error('create request failed');
       const created: ChecklistItem = await response.json();
@@ -321,6 +373,24 @@ export default function PlannerScreen() {
                   item.weatherCondition === weather.condition && (
                     <Text style={styles.todayTag}>Today</Text>
                   )}
+
+                {item.inventoryItemId !== null &&
+                  (() => {
+                    const linkedInventoryItem = inventoryItems.find(
+                      (inventoryItem) => inventoryItem.id === item.inventoryItemId
+                    );
+                    if (!linkedInventoryItem) return null;
+                    return (
+                      <Text
+                        style={styles.inventoryBadge}
+                        testID={`inventory-badge-${item.id}`}
+                      >
+                        {linkedInventoryItem.isPacked
+                          ? '📦 Packed'
+                          : '📦 Not packed'}
+                      </Text>
+                    );
+                  })()}
               </View>
               {rowErrors[item.id] && (
                 <Text style={styles.rowError} testID={`row-error-${item.id}`}>
@@ -352,6 +422,22 @@ export default function PlannerScreen() {
               <Picker.Item label="Select a category..." value={null} />
               {CHECKLIST_CATEGORIES.map((category) => (
                 <Picker.Item key={category} label={category} value={category} />
+              ))}
+            </Picker>
+
+            <Text style={styles.pickerLabel}>Link to inventory item</Text>
+            <Picker
+              selectedValue={modalInventoryItemId}
+              onValueChange={(value) => setModalInventoryItemId(value)}
+              testID="modal-inventory-picker"
+            >
+              <Picker.Item label="None" value={null} />
+              {inventoryItems.map((inventoryItem) => (
+                <Picker.Item
+                  key={inventoryItem.id}
+                  label={inventoryItem.name}
+                  value={inventoryItem.id}
+                />
               ))}
             </Picker>
 
@@ -455,6 +541,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#0a7d34',
   },
+  inventoryBadge: {
+    fontSize: 12,
+    color: '#666',
+  },
   rowError: {
     fontSize: 12,
     color: '#c0392b',
@@ -477,6 +567,10 @@ const styles = StyleSheet.create({
     borderColor: '#999',
     paddingHorizontal: 8,
     paddingVertical: 6,
+  },
+  pickerLabel: {
+    fontSize: 12,
+    color: '#666',
   },
   modalActions: {
     flexDirection: 'row',

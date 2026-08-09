@@ -24,6 +24,10 @@ def get_checklist_item(item_id: int, db: Session = Depends(get_db)):
 def create_checklist_item(
     payload: schemas.ChecklistItemCreate, db: Session = Depends(get_db)
 ):
+    if payload.inventory_item_id is not None:
+        if db.get(models.InventoryItem, payload.inventory_item_id) is None:
+            raise HTTPException(status_code=404, detail="Inventory item not found")
+
     item = models.ChecklistItem(**payload.model_dump())
     db.add(item)
     db.commit()
@@ -41,8 +45,19 @@ def update_checklist_item(
     if item is None:
         raise HTTPException(status_code=404, detail="Checklist item not found")
 
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+
+    if updates.get("inventory_item_id") is not None:
+        if db.get(models.InventoryItem, updates["inventory_item_id"]) is None:
+            raise HTTPException(status_code=404, detail="Inventory item not found")
+
+    for field, value in updates.items():
         setattr(item, field, value)
+
+    if "is_checked" in updates and item.inventory_item_id is not None:
+        linked_item = db.get(models.InventoryItem, item.inventory_item_id)
+        if linked_item is not None:
+            linked_item.is_packed = updates["is_checked"]
 
     db.commit()
     db.refresh(item)
