@@ -1,5 +1,6 @@
 import { Picker } from '@react-native-picker/picker';
-import { useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -46,34 +47,36 @@ export default function InventoryScreen() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSubmitting, setModalSubmitting] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
 
-    async function loadItems() {
-      try {
-        const response = await fetch(`${API_URL}/inventory-items`);
-        if (!response.ok) throw new Error('inventory request failed');
-        const data: InventoryItem[] = await response.json();
-        if (!cancelled) {
-          setItems(data);
-        }
-      } catch {
-        if (!cancelled) {
-          setItems([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
+      async function loadItems() {
+        try {
+          const response = await fetch(`${API_URL}/inventory-items`);
+          if (!response.ok) throw new Error('inventory request failed');
+          const data: InventoryItem[] = await response.json();
+          if (!cancelled) {
+            setItems(data);
+          }
+        } catch {
+          if (!cancelled) {
+            setItems([]);
+          }
+        } finally {
+          if (!cancelled) {
+            setLoading(false);
+          }
         }
       }
-    }
 
-    loadItems();
+      loadItems();
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
 
   function clearRowError(itemId: number) {
     setRowErrors((prev) => {

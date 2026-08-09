@@ -41,8 +41,19 @@ def update_inventory_item(
     if item is None:
         raise HTTPException(status_code=404, detail="Inventory item not found")
 
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    updates = payload.model_dump(exclude_unset=True)
+
+    for field, value in updates.items():
         setattr(item, field, value)
+
+    if "is_packed" in updates:
+        linked_checklist_items = (
+            db.query(models.ChecklistItem)
+            .filter(models.ChecklistItem.inventory_item_id == item.id)
+            .all()
+        )
+        for checklist_item in linked_checklist_items:
+            checklist_item.is_checked = updates["is_packed"]
 
     db.commit()
     db.refresh(item)

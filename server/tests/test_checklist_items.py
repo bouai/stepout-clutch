@@ -145,6 +145,53 @@ def test_patch_empty_body_is_noop(client):
     assert body["isChecked"] is False
 
 
+def test_create_invalid_inventory_item_id_returns_404(client):
+    response = client.post(
+        "/checklist-items",
+        json={"label": "Pack passport", "category": "documents", "inventoryItemId": 9999},
+    )
+    assert response.status_code == 404
+
+
+def test_patch_invalid_inventory_item_id_returns_404(client):
+    created = client.post(
+        "/checklist-items", json={"label": "Pack umbrella", "category": "weather"}
+    ).json()
+
+    response = client.patch(
+        f"/checklist-items/{created['id']}", json={"inventoryItemId": 9999}
+    )
+    assert response.status_code == 404
+
+
+def test_patch_is_checked_cascades_to_linked_inventory_item(client):
+    inventory_item = client.post(
+        "/inventory-items", json={"name": "Passport", "category": "documents"}
+    ).json()
+    checklist_item = client.post(
+        "/checklist-items",
+        json={
+            "label": "Pack passport",
+            "category": "documents",
+            "inventoryItemId": inventory_item["id"],
+        },
+    ).json()
+    assert checklist_item["inventoryItemId"] == inventory_item["id"]
+
+    response = client.patch(
+        f"/checklist-items/{checklist_item['id']}", json={"isChecked": True}
+    )
+    assert response.status_code == 200
+    assert response.json()["isChecked"] is True
+
+    linked = client.get(f"/inventory-items/{inventory_item['id']}").json()
+    assert linked["isPacked"] is True
+
+    client.patch(f"/checklist-items/{checklist_item['id']}", json={"isChecked": False})
+    linked = client.get(f"/inventory-items/{inventory_item['id']}").json()
+    assert linked["isPacked"] is False
+
+
 def test_delete_removes_item(client):
     created = client.post(
         "/checklist-items", json={"label": "Pack umbrella", "category": "weather"}

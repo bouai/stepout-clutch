@@ -116,6 +116,50 @@ def test_patch_empty_body_is_noop(client):
     assert body["isPacked"] is False
 
 
+def test_patch_is_packed_cascades_to_linked_checklist_items(client):
+    inventory_item = client.post(
+        "/inventory-items", json={"name": "Passport", "category": "documents"}
+    ).json()
+    checklist_item_a = client.post(
+        "/checklist-items",
+        json={
+            "label": "Pack passport A",
+            "category": "documents",
+            "inventoryItemId": inventory_item["id"],
+        },
+    ).json()
+    checklist_item_b = client.post(
+        "/checklist-items",
+        json={
+            "label": "Pack passport B",
+            "category": "documents",
+            "inventoryItemId": inventory_item["id"],
+        },
+    ).json()
+    unrelated_item = client.post(
+        "/checklist-items", json={"label": "Unrelated", "category": "other"}
+    ).json()
+
+    response = client.patch(
+        f"/inventory-items/{inventory_item['id']}", json={"isPacked": True}
+    )
+    assert response.status_code == 200
+    assert response.json()["isPacked"] is True
+
+    assert (
+        client.get(f"/checklist-items/{checklist_item_a['id']}").json()["isChecked"]
+        is True
+    )
+    assert (
+        client.get(f"/checklist-items/{checklist_item_b['id']}").json()["isChecked"]
+        is True
+    )
+    assert (
+        client.get(f"/checklist-items/{unrelated_item['id']}").json()["isChecked"]
+        is False
+    )
+
+
 def test_delete_removes_item(client):
     created = client.post(
         "/inventory-items", json={"name": "Laptop", "category": "electronics"}
