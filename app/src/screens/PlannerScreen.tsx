@@ -1,6 +1,7 @@
 import { Picker } from '@react-native-picker/picker';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -127,59 +128,63 @@ export default function PlannerScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
 
-    async function loadChecklist() {
-      try {
-        const response = await fetch(`${API_URL}/checklist-items`);
-        if (!response.ok) throw new Error('checklist request failed');
-        const data: ChecklistItem[] = await response.json();
-        if (!cancelled) {
-          setChecklistItems(data);
-        }
-      } catch {
-        if (!cancelled) {
-          setChecklistItems([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setChecklistLoading(false);
-        }
-      }
-    }
-
-    loadChecklist();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadInventory() {
-      try {
-        const response = await fetch(`${API_URL}/inventory-items`);
-        if (!response.ok) throw new Error('inventory request failed');
-        const data: InventoryItem[] = await response.json();
-        if (!cancelled) {
-          setInventoryItems(data);
-        }
-      } catch {
-        if (!cancelled) {
-          setInventoryItems([]);
+      async function loadChecklist() {
+        try {
+          const response = await fetch(`${API_URL}/checklist-items`);
+          if (!response.ok) throw new Error('checklist request failed');
+          const data: ChecklistItem[] = await response.json();
+          if (!cancelled) {
+            setChecklistItems(data);
+          }
+        } catch {
+          if (!cancelled) {
+            setChecklistItems([]);
+          }
+        } finally {
+          if (!cancelled) {
+            setChecklistLoading(false);
+          }
         }
       }
-    }
 
-    loadInventory();
+      loadChecklist();
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+
+      async function loadInventory() {
+        try {
+          const response = await fetch(`${API_URL}/inventory-items`);
+          if (!response.ok) throw new Error('inventory request failed');
+          const data: InventoryItem[] = await response.json();
+          if (!cancelled) {
+            setInventoryItems(data);
+          }
+        } catch {
+          if (!cancelled) {
+            setInventoryItems([]);
+          }
+        }
+      }
+
+      loadInventory();
+
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
 
   function clearRowError(itemId: number) {
     setRowErrors((prev) => {
