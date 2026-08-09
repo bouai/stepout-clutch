@@ -29,3 +29,31 @@ def create_geofence_trigger(
     db.commit()
     db.refresh(trigger)
     return trigger
+
+
+@router.patch("/{trigger_id}", response_model=schemas.GeofenceTrigger)
+def update_geofence_trigger(
+    trigger_id: int,
+    payload: schemas.GeofenceTriggerUpdate,
+    db: Session = Depends(get_db),
+):
+    trigger = db.get(models.GeofenceTrigger, trigger_id)
+    if trigger is None:
+        raise HTTPException(status_code=404, detail="Geofence trigger not found")
+
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(trigger, field, value)
+
+    db.commit()
+    db.refresh(trigger)
+    return trigger
+
+
+@router.delete("/{trigger_id}", status_code=204)
+def delete_geofence_trigger(trigger_id: int, db: Session = Depends(get_db)):
+    trigger = db.get(models.GeofenceTrigger, trigger_id)
+    if trigger is None:
+        raise HTTPException(status_code=404, detail="Geofence trigger not found")
+
+    db.delete(trigger)
+    db.commit()

@@ -88,6 +88,16 @@ class GeofenceTrigger(GeofenceTriggerBase):
     id: int
 
 
+class GeofenceTriggerUpdate(CamelModel):
+    label: str | None = Field(default=None, min_length=1)
+    latitude: float | None = None
+    longitude: float | None = None
+    radius_meters: float | None = None
+    trigger_type: GeofenceTriggerType | None = None
+    notification_message: str | None = None
+    is_active: bool | None = None
+
+
 class SavedDestinationBase(CamelModel):
     label: str
     latitude: float
