@@ -47,3 +47,13 @@ def update_inventory_item(
     db.commit()
     db.refresh(item)
     return item
+
+
+@router.delete("/{item_id}", status_code=204)
+def delete_inventory_item(item_id: int, db: Session = Depends(get_db)):
+    item = db.get(models.InventoryItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Inventory item not found")
+
+    db.delete(item)
+    db.commit()

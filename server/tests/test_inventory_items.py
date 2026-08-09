@@ -114,3 +114,23 @@ def test_patch_empty_body_is_noop(client):
     assert body["name"] == "Laptop"
     assert body["category"] == "electronics"
     assert body["isPacked"] is False
+
+
+def test_delete_removes_item(client):
+    created = client.post(
+        "/inventory-items", json={"name": "Laptop", "category": "electronics"}
+    ).json()
+
+    delete_response = client.delete(f"/inventory-items/{created['id']}")
+    assert delete_response.status_code == 204
+
+    get_response = client.get(f"/inventory-items/{created['id']}")
+    assert get_response.status_code == 404
+
+    list_response = client.get("/inventory-items")
+    assert list_response.json() == []
+
+
+def test_delete_missing_returns_404(client):
+    response = client.delete("/inventory-items/999")
+    assert response.status_code == 404

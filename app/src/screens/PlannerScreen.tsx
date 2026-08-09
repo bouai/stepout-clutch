@@ -3,6 +3,7 @@ import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   StyleSheet,
@@ -209,6 +210,42 @@ export default function PlannerScreen() {
     }
   }
 
+  function confirmDelete(item: ChecklistItem) {
+    Alert.alert(
+      'Delete item?',
+      `Delete "${item.label}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => performDelete(item),
+        },
+      ]
+    );
+  }
+
+  async function performDelete(item: ChecklistItem) {
+    const index = checklistItems.findIndex((row) => row.id === item.id);
+
+    clearRowError(item.id);
+    setChecklistItems((prev) => prev.filter((row) => row.id !== item.id));
+
+    try {
+      const response = await fetch(`${API_URL}/checklist-items/${item.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('delete request failed');
+    } catch {
+      setChecklistItems((prev) => {
+        const next = [...prev];
+        next.splice(index, 0, item);
+        return next;
+      });
+      setRowErrors((prev) => ({ ...prev, [item.id]: 'Could not delete' }));
+    }
+  }
+
   function openAddModal() {
     setModalLabel('');
     setModalCategory(null);
@@ -321,6 +358,14 @@ export default function PlannerScreen() {
                   item.weatherCondition === weather.condition && (
                     <Text style={styles.todayTag}>Today</Text>
                   )}
+
+                <Pressable
+                  onPress={() => confirmDelete(item)}
+                  testID={`delete-${item.id}`}
+                  hitSlop={8}
+                >
+                  <Text style={styles.deleteButton}>Delete</Text>
+                </Pressable>
               </View>
               {rowErrors[item.id] && (
                 <Text style={styles.rowError} testID={`row-error-${item.id}`}>
@@ -454,6 +499,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#0a7d34',
+  },
+  deleteButton: {
+    color: '#c0392b',
+    fontWeight: '600',
   },
   rowError: {
     fontSize: 12,
