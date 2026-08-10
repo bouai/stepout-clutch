@@ -88,3 +88,10 @@ export interface Distance {
   distanceKm: number;
   bearingDegrees: number;
 }
+
+export interface GeofenceEvent {
+  id: number;
+  triggerId: number;
+  direction: GeofenceTriggerType;
+  firedAt: string;
+}
