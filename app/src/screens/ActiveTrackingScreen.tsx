@@ -158,6 +158,7 @@ export default function ActiveTrackingScreen() {
         'no-foreground-permission': 'Location permission is off.',
         'no-background-permission':
           'Background location is off, so zones only fire while StepOut is open. Enable "Allow all the time" in settings.',
+        unsupported: 'Background zones need the phone app; they do not run in a browser.',
         failed: 'The system refused to register these zones.',
       }[result.reason]
     );
