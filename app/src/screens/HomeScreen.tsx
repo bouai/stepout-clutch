@@ -1,10 +1,11 @@
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import ProgressRing from '../components/ProgressRing';
 import ScreenContainer from '../components/ScreenContainer';
+import SettingsSheet from '../components/SettingsSheet';
 import TripSwitcher from '../components/TripSwitcher';
 import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
@@ -77,7 +78,7 @@ async function resolveCoordinates(): Promise<{
 }
 
 export default function HomeScreen() {
-  const { trips, currentTripId } = useTripContext();
+  const { trips, currentTripId, refreshTrips } = useTripContext();
   const currentTrip = trips.find((trip) => trip.id === currentTripId) ?? null;
 
   const [weather, setWeather] = useState<Weather | null>(null);
@@ -98,6 +99,7 @@ export default function HomeScreen() {
   const [alertStatus, setAlertStatus] = useState<AlertStatus>('loading');
 
   const [refreshing, setRefreshing] = useState(false);
+  const [settingsVisible, setSettingsVisible] = useState(false);
 
   const tripQuery = currentTripId !== null ? `?tripId=${currentTripId}` : '';
 
@@ -286,7 +288,26 @@ export default function HomeScreen() {
       onRefresh={handleRefresh}
       refreshing={refreshing}
       testID="home-scroll"
+      headerRight={
+        <Pressable
+          style={styles.settingsButton}
+          onPress={() => setSettingsVisible(true)}
+          testID="home-settings-button"
+          hitSlop={8}
+        >
+          <Text style={styles.settingsGlyph}>⚙️</Text>
+        </Pressable>
+      }
     >
+      <SettingsSheet
+        visible={settingsVisible}
+        onClose={() => setSettingsVisible(false)}
+        onReset={() => {
+          refreshTrips();
+          handleRefresh();
+        }}
+      />
+
       <TripSwitcher />
 
       <View style={styles.weatherCard}>
@@ -415,6 +436,17 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  settingsButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  settingsGlyph: {
+    fontSize: 16,
+  },
   // Translucent so the coral-to-purple gradient reads through, per the mockup;
   // the previous opaque white cards flattened the whole screen.
   weatherCard: {

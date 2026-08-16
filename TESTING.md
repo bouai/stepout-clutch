@@ -71,7 +71,8 @@ resolve it at runtime — usually as a red screen on launch, not a clear error.
 
 ### Every session
 
-Seed the database once so screens aren't empty:
+The database starts empty — the app is meant to hold your own trips now. To
+exercise the populated paths instead, load the demo dataset:
 
 ```bash
 cd server && python seed_demo.py --reset
@@ -80,6 +81,9 @@ cd server && python seed_demo.py --reset
 `--reset` drops and recreates the tables. Needed after any schema change:
 `create_all` only creates missing *tables*, never adds a column to an existing
 one — there is no migration tooling in this project yet.
+
+To wipe data without the command line, use the ⚙️ button on Home →
+**Start fresh**.
 
 Start the backend bound to the LAN, not just localhost:
 
@@ -113,10 +117,10 @@ powershell -c "Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddres
 
 ### Checklist
 
-Seeded data is deliberately asymmetric: **Tokyo** is dense (10 checklist items,
-12 inventory items, 5 destinations, 4 triggers, 2 alerts), **Lisbon** is nearly
-empty, and one inventory item belongs to no trip. Switching trips should
-visibly change every card.
+On a fresh install everything is empty; create a trip and a few items first.
+If you ran `seed_demo.py`, the data is deliberately asymmetric — **Tokyo**
+dense, **Lisbon** nearly empty, one inventory item belonging to no trip — so
+switching trips visibly changes every card.
 
 **Onboarding** — needs a fresh install, or clear app data first.
 - [ ] Welcome → Enable Location → Enable Notifications, dots track the step
@@ -132,8 +136,14 @@ visibly change every card.
 - [ ] No white system header above any screen
 - [ ] Pull-to-refresh works on Home, Plan and Pack
 
+**Settings**
+- [ ] ⚙️ on Home opens the sheet and shows the server URL
+- [ ] "Start fresh" asks for confirmation before deleting
+- [ ] Cancelling deletes nothing
+- [ ] Confirming empties every tab
+
 **Trips**
-- [ ] Chips show All / Tokyo / Lisbon / +
+- [ ] Chips show All / your trips / + (only All on a fresh install)
 - [ ] Selecting Tokyo fills every card; Lisbon nearly empties them
 - [ ] Long-press a chip → Rename and Delete
 - [ ] Rename persists after leaving and returning to the screen
@@ -153,8 +163,11 @@ visibly change every card.
 - [ ] A failed write shows a row error and rolls back (test with the server stopped)
 
 **Go / Track** — the physical layer.
-- [ ] Map tiles render (a grey grid means the Maps key is rejected)
-- [ ] Current-location marker appears
+- [ ] Map tiles render (MapLibre + OpenFreeMap; no API key involved)
+- [ ] Current-location dot appears
+- [ ] **Search a place by name** → picking a result pre-fills the form with its
+      coordinates, no map tapping required
+- [ ] Search results are biased toward where you actually are
 - [ ] Tap the map → trigger modal; the radius circle previews live
 - [ ] Status line reads "Tracking: active — Watching N zones in the background"
 - [ ] Walk out of a small trigger → notification fires
@@ -173,6 +186,11 @@ off, grant it under Settings → Apps → StepOut → Permissions → Location.
 - [ ] Reopen the app → the alert is on Home with a plausible relative time
 - [ ] Toggle a trigger inactive → it stops firing
 - [ ] Delete every trigger → status line says there are no zones to watch
+
+- [ ] **No alerts fire merely from opening the Track tab.** Android reports
+      each region's current state at registration; those are recorded as a
+      baseline and must stay silent. Spurious alerts here are a regression.
+- [ ] An `enter` zone never fires on leaving, and vice versa
 
 OS geofencing is deliberately unhurried: Android batches transitions and can
 take a minute or two, and dwelling briefly inside or outside the radius is

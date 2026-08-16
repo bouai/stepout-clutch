@@ -12,9 +12,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import MapView, { Circle, LatLng, Marker } from 'react-native-maps';
+import MapCanvas, {
+  MapCircle,
+  MapPin,
+  type Coordinate,
+} from '../components/MapCanvas';
 
 import ListState, { type LoadStatus } from '../components/ListState';
+import PlaceSearch, { type Place } from '../components/PlaceSearch';
 import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
 import { apiRequest, describeError } from '../api';
@@ -25,7 +30,6 @@ import { cardShadow, colors, radius, spacing } from '../theme';
 
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
-const DELTA = 0.05;
 
 type TrackingStatus = 'checking' | 'unavailable' | 'active';
 
@@ -41,7 +45,7 @@ Notifications.setNotificationHandler({
 export default function ActiveTrackingScreen() {
   const { currentTripId } = useTripContext();
 
-  const [currentLocation, setCurrentLocation] = useState<LatLng | null>(null);
+  const [currentLocation, setCurrentLocation] = useState<Coordinate | null>(null);
   const [trackingStatus, setTrackingStatus] = useState<TrackingStatus>('checking');
   const [trackingDetail, setTrackingDetail] = useState<string | null>(null);
 
@@ -50,7 +54,7 @@ export default function ActiveTrackingScreen() {
   const [listError, setListError] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
 
-  const [pendingLocation, setPendingLocation] = useState<LatLng | null>(null);
+  const [pendingLocation, setPendingLocation] = useState<Coordinate | null>(null);
   const [modalLabel, setModalLabel] = useState('');
   const [modalRadius, setModalRadius] = useState('');
   const [modalType, setModalType] = useState<GeofenceTriggerType>('enter');
@@ -163,6 +167,16 @@ export default function ActiveTrackingScreen() {
     if (listStatus !== 'ready' && listStatus !== 'empty') return;
     syncGeofences(triggers.filter((trigger) => trigger.isActive));
   }, [listStatus, triggers, syncGeofences]);
+
+  /** Pre-fills the zone form from a search result, skipping the map tap. */
+  function handlePlaceSelected(place: Place) {
+    setPendingLocation({ latitude: place.latitude, longitude: place.longitude });
+    setModalLabel(place.name);
+    setModalRadius('200');
+    setModalType('enter');
+    setModalMessage(`Arrived at ${place.name}`);
+    setModalError(null);
+  }
 
   function closeCreateModal() {
     setPendingLocation(null);
@@ -292,18 +306,22 @@ export default function ActiveTrackingScreen() {
         <TripSwitcher />
       </View>
 
+      <View style={styles.searchWrapper}>
+        <PlaceSearch
+          placeholder="Search a place to watch"
+          near={currentLocation}
+          onSelect={handlePlaceSelected}
+          testIDPrefix="tracking-place-search"
+        />
+      </View>
+
       <View style={styles.mapCard}>
         <View style={styles.mapSection}>
-        <MapView
-          style={styles.map}
-          region={{
-            latitude: mapCenter.latitude,
-            longitude: mapCenter.longitude,
-            latitudeDelta: DELTA,
-            longitudeDelta: DELTA,
-          }}
-          onPress={(e) => {
-            setPendingLocation(e.nativeEvent.coordinate);
+        <MapCanvas
+          center={mapCenter}
+          testID="tracking-map"
+          onPress={(coordinate) => {
+            setPendingLocation(coordinate);
             setModalLabel('');
             setModalRadius('');
             setModalType('enter');
@@ -311,49 +329,35 @@ export default function ActiveTrackingScreen() {
             setModalError(null);
           }}
         >
-          {currentLocation && (
-            <Marker
-              coordinate={currentLocation}
-              title="You"
-              pinColor="blue"
-              testID="current-location-marker"
-            />
-          )}
-
           {triggers.map((trigger) => (
-            <Circle
+            <MapCircle
               key={trigger.id}
+              id={String(trigger.id)}
               center={{ latitude: trigger.latitude, longitude: trigger.longitude }}
-              radius={trigger.radiusMeters}
-              fillColor={
-                trigger.isActive ? 'rgba(255,122,99,0.22)' : 'rgba(136,136,136,0.15)'
-              }
-              strokeColor={
-                trigger.isActive ? 'rgba(255,122,99,0.85)' : 'rgba(136,136,136,0.6)'
-              }
-              strokeWidth={2}
+              radiusMeters={trigger.radiusMeters}
+              active={trigger.isActive}
             />
           ))}
 
           {pendingLocation && (
             <>
-              <Marker
-                coordinate={pendingLocation}
-                pinColor="orange"
-                testID="pending-marker"
-              />
               {validRadius && (
-                <Circle
+                <MapCircle
+                  id="pending"
                   center={pendingLocation}
-                  radius={radiusNumber}
-                  fillColor="rgba(230,126,34,0.2)"
-                  strokeColor="rgba(230,126,34,0.8)"
-                  strokeWidth={2}
+                  radiusMeters={radiusNumber}
                 />
               )}
+              <MapPin
+                id="pending"
+                coordinate={pendingLocation}
+                glyph="➕"
+                tone="muted"
+                testID="pending-marker"
+              />
             </>
           )}
-        </MapView>
+        </MapCanvas>
         </View>
       </View>
 
@@ -516,6 +520,10 @@ export default function ActiveTrackingScreen() {
 const styles = StyleSheet.create({
   tripSwitcherWrapper: {
     marginBottom: spacing.sm,
+  },
+  searchWrapper: {
+    marginBottom: spacing.sm,
+    zIndex: 10,
   },
   card: {
     backgroundColor: colors.card,

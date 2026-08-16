@@ -11,9 +11,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import MapView, { LatLng, Marker, Polyline } from 'react-native-maps';
+import MapCanvas, {
+  MapLine,
+  MapPin,
+  type Coordinate,
+} from '../components/MapCanvas';
 
 import ListState, { type LoadStatus } from '../components/ListState';
+import PlaceSearch, { type Place } from '../components/PlaceSearch';
 import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
 import { apiRequest, describeError } from '../api';
@@ -23,7 +28,6 @@ import { cardShadow, colors, radius, spacing } from '../theme';
 
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
-const DELTA = 0.05;
 
 type DistanceStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -74,7 +78,7 @@ export default function TransitScreen() {
   const [distance, setDistance] = useState<Distance | null>(null);
   const [distanceStatus, setDistanceStatus] = useState<DistanceStatus>('idle');
 
-  const [pendingLocation, setPendingLocation] = useState<LatLng | null>(null);
+  const [pendingLocation, setPendingLocation] = useState<Coordinate | null>(null);
   const [createLabel, setCreateLabel] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSubmitting, setCreateSubmitting] = useState(false);
@@ -165,6 +169,13 @@ export default function TransitScreen() {
     setCreateError(null);
   }
 
+  /** Pre-fills the create form from a search result, skipping the map tap. */
+  function handlePlaceSelected(place: Place) {
+    setPendingLocation({ latitude: place.latitude, longitude: place.longitude });
+    setCreateLabel(place.name);
+    setCreateError(null);
+  }
+
   async function submitCreateDestination() {
     const trimmed = createLabel.trim();
     if (trimmed.length === 0 || !pendingLocation) return;
@@ -249,53 +260,47 @@ export default function TransitScreen() {
         <TripSwitcher />
       </View>
 
+      <View style={styles.searchWrapper}>
+        <PlaceSearch
+          placeholder="Search a place to save"
+          near={currentLocation}
+          onSelect={handlePlaceSelected}
+          testIDPrefix="transit-place-search"
+        />
+      </View>
+
       <View style={styles.mapCard}>
         <View style={styles.mapSection}>
         {currentLocation ? (
-          <MapView
-            style={styles.map}
-            region={{
-              latitude: currentLocation.latitude,
-              longitude: currentLocation.longitude,
-              latitudeDelta: DELTA,
-              longitudeDelta: DELTA,
-            }}
-            onPress={(e) => {
-              setPendingLocation(e.nativeEvent.coordinate);
+          <MapCanvas
+            center={currentLocation}
+            testID="transit-map"
+            onPress={(coordinate) => {
+              setPendingLocation(coordinate);
               setCreateLabel('');
               setCreateError(null);
             }}
           >
-            <Marker
-              coordinate={currentLocation}
-              title="You"
-              pinColor="blue"
-              testID="current-location-marker"
-            />
             {selected && (
-              <Marker
-                coordinate={{
-                  latitude: selected.latitude,
-                  longitude: selected.longitude,
-                }}
-                title={selected.label}
-                testID="destination-marker"
-              />
-            )}
-            {selected && (
-              <Polyline
-                coordinates={[currentLocation, selected]}
-                strokeWidth={2}
-              />
+              <>
+                <MapLine id="route" from={currentLocation} to={selected} />
+                <MapPin
+                  id="destination"
+                  coordinate={selected}
+                  testID="destination-marker"
+                />
+              </>
             )}
             {pendingLocation && (
-              <Marker
+              <MapPin
+                id="pending"
                 coordinate={pendingLocation}
-                pinColor="orange"
+                glyph="➕"
+                tone="muted"
                 testID="pending-marker"
               />
             )}
-          </MapView>
+          </MapCanvas>
         ) : (
           <ActivityIndicator style={styles.map} />
         )}
@@ -424,6 +429,10 @@ export default function TransitScreen() {
 const styles = StyleSheet.create({
   tripSwitcherWrapper: {
     marginBottom: spacing.sm,
+  },
+  searchWrapper: {
+    marginBottom: spacing.sm,
+    zIndex: 10,
   },
   card: {
     backgroundColor: colors.card,

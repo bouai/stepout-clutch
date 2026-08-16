@@ -121,8 +121,26 @@ describe('the background task', () => {
     });
   });
 
+  /**
+   * Android reports the state it finds the moment a region is registered, so
+   * the first event for a region is always a baseline. Real crossings in these
+   * tests are therefore preceded by the opposite state.
+   */
+  async function establishBaseline(identifier: string, state: 'inside' | 'outside') {
+    await fireGeofenceEvent(
+      state === 'inside'
+        ? Location.LocationGeofencingEventType.Enter
+        : Location.LocationGeofencingEventType.Exit,
+      identifier
+    );
+    (Notifications.scheduleNotificationAsync as jest.Mock).mockClear();
+    (global.fetch as jest.Mock).mockClear();
+  }
+
   it('notifies with the trigger label and message on enter', async () => {
     await startGeofencing([trigger()]);
+    await establishBaseline('1', 'outside');
+
     await fireGeofenceEvent(Location.LocationGeofencingEventType.Enter, '1');
 
     expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith(
@@ -138,15 +156,87 @@ describe('the background task', () => {
 
   it('logs the event with the direction the OS reported', async () => {
     await startGeofencing([trigger({ id: 7, triggerType: 'exit' })]);
+    await establishBaseline('7', 'inside');
+
     await fireGeofenceEvent(Location.LocationGeofencingEventType.Exit, '7');
 
     const [, options] = (global.fetch as jest.Mock).mock.calls.at(-1);
     expect(JSON.parse(options.body)).toEqual({ triggerId: 7, direction: 'exit' });
   });
 
+  it('stays silent on the state reported at registration', async () => {
+    // Registering four Tokyo zones from India fired all four instantly, because
+    // Android evaluates every region on registration and reports the result as
+    // a transition.
+    await startGeofencing([
+      trigger({ id: 1 }),
+      trigger({ id: 2, label: 'Hotel', triggerType: 'exit' }),
+      trigger({ id: 3, label: 'Haneda Airport' }),
+    ]);
+
+    await fireGeofenceEvent(Location.LocationGeofencingEventType.Exit, '1');
+    await fireGeofenceEvent(Location.LocationGeofencingEventType.Exit, '2');
+    await fireGeofenceEvent(Location.LocationGeofencingEventType.Exit, '3');
+
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  it('stays silent when the same state is reported twice', async () => {
+    await startGeofencing([trigger()]);
+    await establishBaseline('1', 'outside');
+
+    await fireGeofenceEvent(Location.LocationGeofencingEventType.Exit, '1');
+
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
+  it('ignores a crossing whose direction the trigger does not watch', async () => {
+    // An exit on an enter-type trigger previously notified anyway, using the
+    // enter-worded message — which is how "You've arrived in Shinjuku" appeared
+    // for a zone that had never been entered.
+    await startGeofencing([trigger({ id: 1, triggerType: 'enter' })]);
+    await establishBaseline('1', 'inside');
+
+    await fireGeofenceEvent(Location.LocationGeofencingEventType.Exit, '1');
+
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('notifies on a genuine crossing after the baseline settles', async () => {
+    await startGeofencing([trigger({ id: 2, label: 'Hotel', triggerType: 'exit', notificationMessage: 'Heading out' })]);
+    await establishBaseline('2', 'inside');
+
+    await fireGeofenceEvent(Location.LocationGeofencingEventType.Exit, '2');
+
+    expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: { title: 'Hotel', body: 'Heading out' },
+        trigger: null,
+      })
+    );
+  });
+
+  it('forgets state for regions that are no longer registered', async () => {
+    await startGeofencing([trigger({ id: 1 }), trigger({ id: 2, label: 'Hotel' })]);
+    await fireGeofenceEvent(Location.LocationGeofencingEventType.Exit, '2');
+
+    // Trigger 2 is deleted; a new trigger reusing the id must not inherit its
+    // baseline and skip the user's first real alert.
+    await startGeofencing([trigger({ id: 1 })]);
+    (Notifications.scheduleNotificationAsync as jest.Mock).mockClear();
+
+    await startGeofencing([trigger({ id: 1 }), trigger({ id: 2, label: 'Cafe' })]);
+    await fireGeofenceEvent(Location.LocationGeofencingEventType.Exit, '2');
+
+    expect(Notifications.scheduleNotificationAsync).not.toHaveBeenCalled();
+  });
+
   it('still notifies when the cache has no entry for the region', async () => {
     // The process can be relaunched cold with an empty cache; a generic alert
     // beats no alert at all.
+    await establishBaseline('42', 'outside');
+
     await fireGeofenceEvent(Location.LocationGeofencingEventType.Enter, '42');
 
     expect(Notifications.scheduleNotificationAsync).toHaveBeenCalledWith(
@@ -158,8 +248,9 @@ describe('the background task', () => {
   });
 
   it('still notifies when event logging fails', async () => {
-    (global.fetch as jest.Mock).mockRejectedValue(new Error('offline'));
     await startGeofencing([trigger()]);
+    await establishBaseline('1', 'outside');
+    (global.fetch as jest.Mock).mockRejectedValue(new Error('offline'));
 
     await fireGeofenceEvent(Location.LocationGeofencingEventType.Enter, '1');
 

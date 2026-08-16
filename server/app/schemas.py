@@ -177,6 +177,15 @@ class Distance(CamelModel):
     bearing_degrees: int
 
 
+class Place(CamelModel):
+    """A geocoded search result, ready to become a destination or trip."""
+
+    name: str
+    context: str
+    latitude: float
+    longitude: float
+
+
 class Weather(CamelModel):
     temperature_celsius: float
     wind_speed_kmh: float
