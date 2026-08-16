@@ -10,6 +10,7 @@ from app.routers import (
     geofence_events,
     geofence_triggers,
     inventory_items,
+    places,
     saved_destinations,
     trips,
     weather,
@@ -42,6 +43,7 @@ app.include_router(saved_destinations.router)
 app.include_router(weather.router)
 app.include_router(trips.router)
 app.include_router(geofence_events.router)
+app.include_router(places.router)
 
 
 @app.get("/health")

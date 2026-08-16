@@ -18,6 +18,7 @@ import MapCanvas, {
 } from '../components/MapCanvas';
 
 import ListState, { type LoadStatus } from '../components/ListState';
+import PlaceSearch, { type Place } from '../components/PlaceSearch';
 import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
 import { apiRequest, describeError } from '../api';
@@ -168,6 +169,13 @@ export default function TransitScreen() {
     setCreateError(null);
   }
 
+  /** Pre-fills the create form from a search result, skipping the map tap. */
+  function handlePlaceSelected(place: Place) {
+    setPendingLocation({ latitude: place.latitude, longitude: place.longitude });
+    setCreateLabel(place.name);
+    setCreateError(null);
+  }
+
   async function submitCreateDestination() {
     const trimmed = createLabel.trim();
     if (trimmed.length === 0 || !pendingLocation) return;
@@ -250,6 +258,15 @@ export default function TransitScreen() {
     <ScreenContainer scrollable={false} testID="transit-fixed">
       <View style={styles.tripSwitcherWrapper}>
         <TripSwitcher />
+      </View>
+
+      <View style={styles.searchWrapper}>
+        <PlaceSearch
+          placeholder="Search a place to save"
+          near={currentLocation}
+          onSelect={handlePlaceSelected}
+          testIDPrefix="transit-place-search"
+        />
       </View>
 
       <View style={styles.mapCard}>
@@ -412,6 +429,10 @@ export default function TransitScreen() {
 const styles = StyleSheet.create({
   tripSwitcherWrapper: {
     marginBottom: spacing.sm,
+  },
+  searchWrapper: {
+    marginBottom: spacing.sm,
+    zIndex: 10,
   },
   card: {
     backgroundColor: colors.card,

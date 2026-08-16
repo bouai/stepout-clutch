@@ -19,6 +19,7 @@ import MapCanvas, {
 } from '../components/MapCanvas';
 
 import ListState, { type LoadStatus } from '../components/ListState';
+import PlaceSearch, { type Place } from '../components/PlaceSearch';
 import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
 import { apiRequest, describeError } from '../api';
@@ -167,6 +168,16 @@ export default function ActiveTrackingScreen() {
     syncGeofences(triggers.filter((trigger) => trigger.isActive));
   }, [listStatus, triggers, syncGeofences]);
 
+  /** Pre-fills the zone form from a search result, skipping the map tap. */
+  function handlePlaceSelected(place: Place) {
+    setPendingLocation({ latitude: place.latitude, longitude: place.longitude });
+    setModalLabel(place.name);
+    setModalRadius('200');
+    setModalType('enter');
+    setModalMessage(`Arrived at ${place.name}`);
+    setModalError(null);
+  }
+
   function closeCreateModal() {
     setPendingLocation(null);
     setModalLabel('');
@@ -293,6 +304,15 @@ export default function ActiveTrackingScreen() {
     <ScreenContainer scrollable={false} testID="tracking-fixed">
       <View style={styles.tripSwitcherWrapper}>
         <TripSwitcher />
+      </View>
+
+      <View style={styles.searchWrapper}>
+        <PlaceSearch
+          placeholder="Search a place to watch"
+          near={currentLocation}
+          onSelect={handlePlaceSelected}
+          testIDPrefix="tracking-place-search"
+        />
       </View>
 
       <View style={styles.mapCard}>
@@ -500,6 +520,10 @@ export default function ActiveTrackingScreen() {
 const styles = StyleSheet.create({
   tripSwitcherWrapper: {
     marginBottom: spacing.sm,
+  },
+  searchWrapper: {
+    marginBottom: spacing.sm,
+    zIndex: 10,
   },
   card: {
     backgroundColor: colors.card,
