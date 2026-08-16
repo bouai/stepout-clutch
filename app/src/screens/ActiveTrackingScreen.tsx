@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +18,7 @@ import ListState, { type LoadStatus } from '../components/ListState';
 import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
 import { apiRequest, describeError } from '../api';
+import { startGeofencing } from '../geofencing';
 import { useTripContext } from '../context/TripContext';
 import type { GeofenceTrigger, GeofenceTriggerType } from '../types/models';
 import { cardShadow, colors, radius, spacing } from '../theme';
@@ -25,10 +26,8 @@ import { cardShadow, colors, radius, spacing } from '../theme';
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
 const DELTA = 0.05;
-const EARTH_RADIUS_METERS = 6371000;
 
 type TrackingStatus = 'checking' | 'unavailable' | 'active';
-type ProximityState = 'inside' | 'outside';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -39,22 +38,12 @@ Notifications.setNotificationHandler({
   }),
 });
 
-function haversineDistanceMeters(a: LatLng, b: LatLng): number {
-  const lat1 = (a.latitude * Math.PI) / 180;
-  const lat2 = (b.latitude * Math.PI) / 180;
-  const deltaLat = ((b.latitude - a.latitude) * Math.PI) / 180;
-  const deltaLon = ((b.longitude - a.longitude) * Math.PI) / 180;
-  const h =
-    Math.sin(deltaLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
-  return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(h));
-}
-
 export default function ActiveTrackingScreen() {
   const { currentTripId } = useTripContext();
 
   const [currentLocation, setCurrentLocation] = useState<LatLng | null>(null);
   const [trackingStatus, setTrackingStatus] = useState<TrackingStatus>('checking');
+  const [trackingDetail, setTrackingDetail] = useState<string | null>(null);
 
   const [triggers, setTriggers] = useState<GeofenceTrigger[]>([]);
   const [listStatus, setListStatus] = useState<LoadStatus>('loading');
@@ -68,13 +57,6 @@ export default function ActiveTrackingScreen() {
   const [modalMessage, setModalMessage] = useState('');
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSubmitting, setModalSubmitting] = useState(false);
-
-  const baselineRef = useRef<Record<number, ProximityState>>({});
-  const triggersRef = useRef<GeofenceTrigger[]>(triggers);
-
-  useEffect(() => {
-    triggersRef.current = triggers;
-  }, [triggers]);
 
   const loadTriggers = useCallback(
     async (isCancelled: () => boolean) => {
@@ -110,89 +92,77 @@ export default function ActiveTrackingScreen() {
     };
   }, [loadTriggers]);
 
+  // Keeps the map's "you are here" marker current. Purely cosmetic now —
+  // trigger evaluation moved to the OS and no longer depends on this running.
   useEffect(() => {
     let cancelled = false;
     let subscription: Location.LocationSubscription | null = null;
 
-    function evaluateTriggers(location: LatLng) {
-      for (const trigger of triggersRef.current) {
-        if (!trigger.isActive) continue;
-
-        const distanceMeters = haversineDistanceMeters(location, {
-          latitude: trigger.latitude,
-          longitude: trigger.longitude,
-        });
-        const state: ProximityState =
-          distanceMeters <= trigger.radiusMeters ? 'inside' : 'outside';
-        const priorState = baselineRef.current[trigger.id];
-
-        if (priorState === undefined) {
-          baselineRef.current[trigger.id] = state;
-          continue;
-        }
-
-        if (priorState !== state) {
-          baselineRef.current[trigger.id] = state;
-          const transitionType: GeofenceTriggerType =
-            state === 'inside' ? 'enter' : 'exit';
-          if (transitionType === trigger.triggerType) {
-            Notifications.scheduleNotificationAsync({
-              content: {
-                title: trigger.label,
-                body: trigger.notificationMessage,
-              },
-              trigger: null,
-            });
-            apiRequest('/geofence-events', {
-              method: 'POST',
-              body: {
-                triggerId: trigger.id,
-                direction: transitionType,
-              },
-            }).catch(() => {
-              // Fire-and-forget: event logging failure must never affect the
-              // notification or be surfaced to the user.
-            });
-          }
-        }
-      }
-    }
-
-    async function startTracking() {
-      const locationPermission = await Location.requestForegroundPermissionsAsync();
-      const notificationPermission = await Notifications.requestPermissionsAsync();
-
-      if (
-        cancelled ||
-        locationPermission.status !== 'granted' ||
-        !notificationPermission.granted
-      ) {
-        if (!cancelled) setTrackingStatus('unavailable');
-        return;
-      }
-
-      setTrackingStatus('active');
+    async function watchForMap() {
+      const permission = await Location.getForegroundPermissionsAsync();
+      if (cancelled || permission.status !== 'granted') return;
 
       subscription = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.Balanced, distanceInterval: 10 },
         (position) => {
-          const location: LatLng = {
+          setCurrentLocation({
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
-          };
-          setCurrentLocation(location);
-          evaluateTriggers(location);
+          });
         }
       );
     }
 
-    startTracking();
+    watchForMap();
 
     return () => {
       cancelled = true;
       subscription?.remove();
     };
+  }, [trackingStatus]);
+
+  /**
+   * Hands the current trigger set to the OS.
+   *
+   * This used to be a foreground `watchPositionAsync` loop doing haversine
+   * checks in JS, which meant alerts fired only while this screen was open —
+   * directly contradicting onboarding's promise of being alerted "the moment
+   * you enter or leave a saved zone".
+   */
+  const syncGeofences = useCallback(async (active: GeofenceTrigger[]) => {
+    const notificationPermission = await Notifications.requestPermissionsAsync();
+    if (!notificationPermission.granted) {
+      setTrackingStatus('unavailable');
+      setTrackingDetail('Notifications are off, so alerts cannot be delivered.');
+      return;
+    }
+
+    const result = await startGeofencing(active);
+
+    if (result.ok) {
+      setTrackingStatus('active');
+      setTrackingDetail(
+        `Watching ${result.regionCount} zone${result.regionCount === 1 ? '' : 's'} in the background.`
+      );
+      return;
+    }
+
+    setTrackingStatus('unavailable');
+    setTrackingDetail(
+      {
+        'no-regions': 'No active zones to watch. Add one by tapping the map.',
+        'no-foreground-permission': 'Location permission is off.',
+        'no-background-permission':
+          'Background location is off, so zones only fire while StepOut is open. Enable "Allow all the time" in settings.',
+        failed: 'The system refused to register these zones.',
+      }[result.reason]
+    );
   }, []);
+
+  useEffect(() => {
+    if (listStatus !== 'ready' && listStatus !== 'empty') return;
+    syncGeofences(triggers.filter((trigger) => trigger.isActive));
+  }, [listStatus, triggers, syncGeofences]);
 
   function closeCreateModal() {
     setPendingLocation(null);
@@ -390,14 +360,10 @@ export default function ActiveTrackingScreen() {
       {trackingStatus === 'checking' && (
         <Text style={styles.note}>Checking tracking status…</Text>
       )}
-      {trackingStatus === 'active' && (
+      {trackingStatus !== 'checking' && (
         <Text style={styles.note} testID="tracking-status">
-          Tracking: active
-        </Text>
-      )}
-      {trackingStatus === 'unavailable' && (
-        <Text style={styles.note} testID="tracking-status">
-          Tracking unavailable
+          {trackingStatus === 'active' ? 'Tracking: active' : 'Tracking unavailable'}
+          {trackingDetail ? ` — ${trackingDetail}` : ''}
         </Text>
       )}
 

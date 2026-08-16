@@ -38,12 +38,30 @@ jest.mock('react-native-safe-area-context', () => {
 
 jest.mock('expo-location', () => ({
   requestForegroundPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
+  getForegroundPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
+  requestBackgroundPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
   getCurrentPositionAsync: jest.fn(async () => ({
     coords: { latitude: 35.68, longitude: 139.69 },
   })),
   watchPositionAsync: jest.fn(async () => ({ remove: jest.fn() })),
+  startGeofencingAsync: jest.fn(async () => undefined),
+  stopGeofencingAsync: jest.fn(async () => undefined),
+  hasStartedGeofencingAsync: jest.fn(async () => false),
   Accuracy: { Balanced: 3 },
+  LocationGeofencingEventType: { Enter: 1, Exit: 2 },
+  LocationGeofencingRegionState: { Unknown: 0, Inside: 1, Outside: 2 },
 }));
+
+jest.mock('expo-task-manager', () => {
+  // Capture the registered handler so tests can invoke it the way the OS would.
+  const tasks = new Map();
+  return {
+    defineTask: jest.fn((name, handler) => tasks.set(name, handler)),
+    isTaskRegisteredAsync: jest.fn(async (name) => tasks.has(name)),
+    unregisterTaskAsync: jest.fn(async (name) => tasks.delete(name)),
+    __getTask: (name) => tasks.get(name),
+  };
+});
 
 jest.mock('expo-notifications', () => ({
   setNotificationHandler: jest.fn(),
