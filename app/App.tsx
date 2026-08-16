@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { TripProvider } from './src/context/TripContext';
 import RootNavigator from './src/navigation/RootNavigator';
@@ -43,22 +45,23 @@ export default function App() {
     setOnboardingComplete(true);
   }
 
-  if (onboardingComplete === null) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
-
-  if (!onboardingComplete) {
-    return <OnboardingFlow onComplete={completeOnboarding} />;
-  }
-
+  // `light` because every screen sits on the dark end of the coral→purple
+  // gradient; the default dark icons were invisible against it.
   return (
-    <TripProvider>
-      <RootNavigator />
-    </TripProvider>
+    <SafeAreaProvider>
+      <StatusBar style="light" />
+      {onboardingComplete === null ? (
+        <View style={styles.loadingContainer} testID="app-loading">
+          <ActivityIndicator />
+        </View>
+      ) : onboardingComplete ? (
+        <TripProvider>
+          <RootNavigator />
+        </TripProvider>
+      ) : (
+        <OnboardingFlow onComplete={completeOnboarding} />
+      )}
+    </SafeAreaProvider>
   );
 }
 

@@ -132,3 +132,6 @@ class GeofenceEvent(Base):
     fired_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
     )
+    trip_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("trips.id"), nullable=True
+    )

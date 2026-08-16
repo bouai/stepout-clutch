@@ -1,9 +1,7 @@
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -13,12 +11,13 @@ import {
   View,
 } from 'react-native';
 
+import ListState, { type LoadStatus } from '../components/ListState';
+import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
 import { useTripContext } from '../context/TripContext';
+import { apiRequest, describeError } from '../api';
 import type { InventoryCategory, InventoryItem } from '../types/models';
 import { cardShadow, colors, radius, spacing, typography } from '../theme';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 const INVENTORY_CATEGORIES: InventoryCategory[] = [
   'electronics',
@@ -31,20 +30,19 @@ async function patchInventoryItem(
   id: number,
   patch: Record<string, unknown>
 ): Promise<InventoryItem> {
-  const response = await fetch(`${API_URL}/inventory-items/${id}`, {
+  return apiRequest<InventoryItem>(`/inventory-items/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
+    body: patch,
   });
-  if (!response.ok) throw new Error('patch request failed');
-  return response.json();
 }
 
 export default function InventoryScreen() {
   const { currentTripId } = useTripContext();
 
   const [items, setItems] = useState<InventoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<LoadStatus>('loading');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -53,39 +51,50 @@ export default function InventoryScreen() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSubmitting, setModalSubmitting] = useState(false);
 
+  const loadItems = useCallback(
+    async (isCancelled: () => boolean) => {
+      try {
+        const data = await apiRequest<InventoryItem[]>('/inventory-items', {
+          query: { tripId: currentTripId },
+        });
+        if (!isCancelled()) {
+          setItems(data);
+          setLoadError(null);
+          setStatus(data.length === 0 ? 'empty' : 'ready');
+        }
+      } catch (error) {
+        // Keep whatever is on screen and say so, rather than blanking the list
+        // into something indistinguishable from "you have no items".
+        if (!isCancelled()) {
+          setLoadError(describeError(error));
+          setStatus('error');
+        }
+      }
+    },
+    [currentTripId]
+  );
+
+  function retry() {
+    setStatus('loading');
+    loadItems(() => false);
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadItems(() => false);
+    setRefreshing(false);
+  }
+
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
 
-      async function loadItems() {
-        try {
-          const url =
-            currentTripId !== null
-              ? `${API_URL}/inventory-items?tripId=${currentTripId}`
-              : `${API_URL}/inventory-items`;
-          const response = await fetch(url);
-          if (!response.ok) throw new Error('inventory request failed');
-          const data: InventoryItem[] = await response.json();
-          if (!cancelled) {
-            setItems(data);
-          }
-        } catch {
-          if (!cancelled) {
-            setItems([]);
-          }
-        } finally {
-          if (!cancelled) {
-            setLoading(false);
-          }
-        }
-      }
-
-      loadItems();
+      loadItems(() => cancelled);
 
       return () => {
         cancelled = true;
       };
-    }, [currentTripId])
+    }, [loadItems])
   );
 
   function clearRowError(itemId: number) {
@@ -140,10 +149,8 @@ export default function InventoryScreen() {
     setItems((prev) => prev.filter((row) => row.id !== item.id));
 
     try {
-      const response = await fetch(`${API_URL}/inventory-items/${item.id}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) throw new Error('delete request failed');
+      await apiRequest<void>(`/inventory-items/${item.id}`, { method: 'DELETE' });
+      if (items.length === 1) setStatus('empty');
     } catch {
       setItems((prev) => {
         const next = [...prev];
@@ -176,21 +183,19 @@ export default function InventoryScreen() {
     setModalError(null);
 
     try {
-      const response = await fetch(`${API_URL}/inventory-items`, {
+      const created = await apiRequest<InventoryItem>('/inventory-items', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           name: trimmed,
           category: modalCategory,
           ...(currentTripId !== null ? { tripId: currentTripId } : {}),
-        }),
+        },
       });
-      if (!response.ok) throw new Error('create request failed');
-      const created: InventoryItem = await response.json();
       setItems((prev) => [...prev, created]);
+      setStatus('ready');
       closeAddModal();
-    } catch {
-      setModalError('Could not add item');
+    } catch (error) {
+      setModalError(describeError(error));
     } finally {
       setModalSubmitting(false);
     }
@@ -199,9 +204,10 @@ export default function InventoryScreen() {
   const canSubmitModal = modalName.trim().length > 0 && modalCategory !== null;
 
   return (
-    <LinearGradient
-      colors={[colors.gradientStart, colors.gradientEnd]}
-      style={styles.container}
+    <ScreenContainer
+      onRefresh={handleRefresh}
+      refreshing={refreshing}
+      testID="inventory-scroll"
     >
       <View style={styles.header}>
         <Text style={styles.title}>Inventory</Text>
@@ -213,12 +219,14 @@ export default function InventoryScreen() {
       <TripSwitcher />
 
       <View style={[styles.card, styles.listCard]}>
-        {loading && <ActivityIndicator />}
-        {!loading && items.length === 0 && (
-          <Text testID="inventory-empty">No inventory items yet</Text>
-        )}
-        {!loading &&
-          items.length > 0 &&
+        <ListState
+          status={status}
+          emptyMessage="No inventory items yet"
+          errorMessage={loadError ?? undefined}
+          onRetry={retry}
+          testIDPrefix="inventory"
+        />
+        {status === 'ready' &&
           items.map((item) => (
             <View key={item.id} style={styles.row}>
               <View style={styles.rowMain}>
@@ -301,17 +309,11 @@ export default function InventoryScreen() {
           </View>
         </View>
       </Modal>
-    </LinearGradient>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 60,
-    paddingHorizontal: 16,
-    paddingBottom: 120,
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -328,21 +330,19 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     ...cardShadow,
   },
-  listCard: {
-    flex: 1,
-  },
+  listCard: {},
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
   },
   addButton: {
-    color: '#0a7d34',
+    color: colors.accent,
     fontWeight: '600',
   },
   row: {
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ccc',
+    borderBottomColor: colors.cardBorder,
   },
   rowMain: {
     flexDirection: 'row',
@@ -361,12 +361,12 @@ const styles = StyleSheet.create({
     color: '#888',
   },
   deleteButton: {
-    color: '#c0392b',
+    color: colors.danger,
     fontWeight: '600',
   },
   rowError: {
     fontSize: 12,
-    color: '#c0392b',
+    color: colors.danger,
     marginTop: 4,
   },
   modalOverlay: {
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
   },
   modalInput: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#999',
+    borderColor: colors.textSecondary,
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
@@ -394,9 +394,9 @@ const styles = StyleSheet.create({
   },
   modalActionText: {
     fontWeight: '600',
-    color: '#0a7d34',
+    color: colors.accent,
   },
   modalActionDisabled: {
-    color: '#aaa',
+    color: colors.textSecondary,
   },
 });

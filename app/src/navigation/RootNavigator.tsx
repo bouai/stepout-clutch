@@ -1,6 +1,7 @@
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import ActiveTrackingScreen from '../screens/ActiveTrackingScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -20,11 +21,16 @@ function TabIcon({ glyph, focused }: { glyph: string; focused: boolean }) {
 }
 
 export default function RootNavigator() {
+  const insets = useSafeAreaInsets();
+
   return (
     <NavigationContainer>
       <Tab.Navigator
         screenOptions={{
-          tabBarStyle: styles.tabBar,
+          headerShown: false,
+          // Lift the floating pill clear of the gesture bar; a fixed 24pt
+          // offset put it underneath on gesture-navigation devices.
+          tabBarStyle: [styles.tabBar, { bottom: insets.bottom + 12 }],
           tabBarActiveTintColor: colors.navIconActive,
           tabBarInactiveTintColor: colors.navIcon,
           tabBarLabelStyle: styles.tabBarLabel,

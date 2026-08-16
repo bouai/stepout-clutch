@@ -61,5 +61,11 @@ def delete_geofence_trigger(trigger_id: int, db: Session = Depends(get_db)):
     if trigger is None:
         raise HTTPException(status_code=404, detail="Geofence trigger not found")
 
+    # Events are meaningless without their trigger — leaving them behind made
+    # Home's "Latest Alert" card resolve to "Unknown location" forever.
+    db.query(models.GeofenceEvent).filter(
+        models.GeofenceEvent.trigger_id == trigger_id
+    ).delete(synchronize_session=False)
+
     db.delete(trigger)
     db.commit()

@@ -1,12 +1,12 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,20 +14,20 @@ import {
 } from 'react-native';
 import MapView, { Circle, LatLng, Marker } from 'react-native-maps';
 
+import ListState, { type LoadStatus } from '../components/ListState';
+import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
+import { apiRequest, describeError } from '../api';
+import { startGeofencing } from '../geofencing';
 import { useTripContext } from '../context/TripContext';
 import type { GeofenceTrigger, GeofenceTriggerType } from '../types/models';
 import { cardShadow, colors, radius, spacing } from '../theme';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
 const DELTA = 0.05;
-const EARTH_RADIUS_METERS = 6371000;
 
 type TrackingStatus = 'checking' | 'unavailable' | 'active';
-type ListStatus = 'loading' | 'ready' | 'error';
-type ProximityState = 'inside' | 'outside';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -38,25 +38,16 @@ Notifications.setNotificationHandler({
   }),
 });
 
-function haversineDistanceMeters(a: LatLng, b: LatLng): number {
-  const lat1 = (a.latitude * Math.PI) / 180;
-  const lat2 = (b.latitude * Math.PI) / 180;
-  const deltaLat = ((b.latitude - a.latitude) * Math.PI) / 180;
-  const deltaLon = ((b.longitude - a.longitude) * Math.PI) / 180;
-  const h =
-    Math.sin(deltaLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
-  return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(h));
-}
-
 export default function ActiveTrackingScreen() {
   const { currentTripId } = useTripContext();
 
   const [currentLocation, setCurrentLocation] = useState<LatLng | null>(null);
   const [trackingStatus, setTrackingStatus] = useState<TrackingStatus>('checking');
+  const [trackingDetail, setTrackingDetail] = useState<string | null>(null);
 
   const [triggers, setTriggers] = useState<GeofenceTrigger[]>([]);
-  const [listStatus, setListStatus] = useState<ListStatus>('loading');
+  const [listStatus, setListStatus] = useState<LoadStatus>('loading');
+  const [listError, setListError] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
 
   const [pendingLocation, setPendingLocation] = useState<LatLng | null>(null);
@@ -67,127 +58,111 @@ export default function ActiveTrackingScreen() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSubmitting, setModalSubmitting] = useState(false);
 
-  const baselineRef = useRef<Record<number, ProximityState>>({});
-  const triggersRef = useRef<GeofenceTrigger[]>(triggers);
-
-  useEffect(() => {
-    triggersRef.current = triggers;
-  }, [triggers]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadTriggers() {
+  const loadTriggers = useCallback(
+    async (isCancelled: () => boolean) => {
       try {
-        const url =
-          currentTripId !== null
-            ? `${API_URL}/geofence-triggers?tripId=${currentTripId}`
-            : `${API_URL}/geofence-triggers`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('geofence-triggers request failed');
-        const data: GeofenceTrigger[] = await response.json();
-        if (!cancelled) {
+        const data = await apiRequest<GeofenceTrigger[]>('/geofence-triggers', {
+          query: { tripId: currentTripId },
+        });
+        if (!isCancelled()) {
           setTriggers(data);
-          setListStatus('ready');
+          setListError(null);
+          setListStatus(data.length === 0 ? 'empty' : 'ready');
         }
-      } catch {
-        if (!cancelled) {
+      } catch (error) {
+        if (!isCancelled()) {
+          setListError(describeError(error));
           setListStatus('error');
         }
       }
-    }
+    },
+    [currentTripId]
+  );
 
-    loadTriggers();
+  function retryTriggers() {
+    setListStatus('loading');
+    loadTriggers(() => false);
+  }
 
+  useEffect(() => {
+    let cancelled = false;
+    loadTriggers(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [currentTripId]);
+  }, [loadTriggers]);
 
+  // Keeps the map's "you are here" marker current. Purely cosmetic now —
+  // trigger evaluation moved to the OS and no longer depends on this running.
   useEffect(() => {
     let cancelled = false;
     let subscription: Location.LocationSubscription | null = null;
 
-    function evaluateTriggers(location: LatLng) {
-      for (const trigger of triggersRef.current) {
-        if (!trigger.isActive) continue;
-
-        const distanceMeters = haversineDistanceMeters(location, {
-          latitude: trigger.latitude,
-          longitude: trigger.longitude,
-        });
-        const state: ProximityState =
-          distanceMeters <= trigger.radiusMeters ? 'inside' : 'outside';
-        const priorState = baselineRef.current[trigger.id];
-
-        if (priorState === undefined) {
-          baselineRef.current[trigger.id] = state;
-          continue;
-        }
-
-        if (priorState !== state) {
-          baselineRef.current[trigger.id] = state;
-          const transitionType: GeofenceTriggerType =
-            state === 'inside' ? 'enter' : 'exit';
-          if (transitionType === trigger.triggerType) {
-            Notifications.scheduleNotificationAsync({
-              content: {
-                title: trigger.label,
-                body: trigger.notificationMessage,
-              },
-              trigger: null,
-            });
-            fetch(`${API_URL}/geofence-events`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                triggerId: trigger.id,
-                direction: transitionType,
-              }),
-            }).catch(() => {
-              // Fire-and-forget: event logging failure must never affect the
-              // notification or be surfaced to the user.
-            });
-          }
-        }
-      }
-    }
-
-    async function startTracking() {
-      const locationPermission = await Location.requestForegroundPermissionsAsync();
-      const notificationPermission = await Notifications.requestPermissionsAsync();
-
-      if (
-        cancelled ||
-        locationPermission.status !== 'granted' ||
-        !notificationPermission.granted
-      ) {
-        if (!cancelled) setTrackingStatus('unavailable');
-        return;
-      }
-
-      setTrackingStatus('active');
+    async function watchForMap() {
+      const permission = await Location.getForegroundPermissionsAsync();
+      if (cancelled || permission.status !== 'granted') return;
 
       subscription = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.Balanced, distanceInterval: 10 },
         (position) => {
-          const location: LatLng = {
+          setCurrentLocation({
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
-          };
-          setCurrentLocation(location);
-          evaluateTriggers(location);
+          });
         }
       );
     }
 
-    startTracking();
+    watchForMap();
 
     return () => {
       cancelled = true;
       subscription?.remove();
     };
+  }, [trackingStatus]);
+
+  /**
+   * Hands the current trigger set to the OS.
+   *
+   * This used to be a foreground `watchPositionAsync` loop doing haversine
+   * checks in JS, which meant alerts fired only while this screen was open —
+   * directly contradicting onboarding's promise of being alerted "the moment
+   * you enter or leave a saved zone".
+   */
+  const syncGeofences = useCallback(async (active: GeofenceTrigger[]) => {
+    const notificationPermission = await Notifications.requestPermissionsAsync();
+    if (!notificationPermission.granted) {
+      setTrackingStatus('unavailable');
+      setTrackingDetail('Notifications are off, so alerts cannot be delivered.');
+      return;
+    }
+
+    const result = await startGeofencing(active);
+
+    if (result.ok) {
+      setTrackingStatus('active');
+      setTrackingDetail(
+        `Watching ${result.regionCount} zone${result.regionCount === 1 ? '' : 's'} in the background.`
+      );
+      return;
+    }
+
+    setTrackingStatus('unavailable');
+    setTrackingDetail(
+      {
+        'no-regions': 'No active zones to watch. Add one by tapping the map.',
+        'no-foreground-permission': 'Location permission is off.',
+        'no-background-permission':
+          'Background location is off, so zones only fire while StepOut is open. Enable "Allow all the time" in settings.',
+        failed: 'The system refused to register these zones.',
+      }[result.reason]
+    );
   }, []);
+
+  useEffect(() => {
+    if (listStatus !== 'ready' && listStatus !== 'empty') return;
+    syncGeofences(triggers.filter((trigger) => trigger.isActive));
+  }, [listStatus, triggers, syncGeofences]);
 
   function closeCreateModal() {
     setPendingLocation(null);
@@ -219,12 +194,10 @@ export default function ActiveTrackingScreen() {
     );
 
     try {
-      const response = await fetch(`${API_URL}/geofence-triggers/${trigger.id}`, {
+      await apiRequest<GeofenceTrigger>(`/geofence-triggers/${trigger.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: nextActive }),
+        body: { isActive: nextActive },
       });
-      if (!response.ok) throw new Error('patch request failed');
     } catch {
       setTriggers((prev) =>
         prev.map((row) =>
@@ -257,10 +230,10 @@ export default function ActiveTrackingScreen() {
     setTriggers((prev) => prev.filter((row) => row.id !== trigger.id));
 
     try {
-      const response = await fetch(`${API_URL}/geofence-triggers/${trigger.id}`, {
+      await apiRequest<void>(`/geofence-triggers/${trigger.id}`, {
         method: 'DELETE',
       });
-      if (!response.ok) throw new Error('delete request failed');
+      if (triggers.length === 1) setListStatus('empty');
     } catch {
       setTriggers((prev) => {
         const next = [...prev];
@@ -286,10 +259,9 @@ export default function ActiveTrackingScreen() {
     setModalError(null);
 
     try {
-      const response = await fetch(`${API_URL}/geofence-triggers`, {
+      const created = await apiRequest<GeofenceTrigger>('/geofence-triggers', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           label: modalLabel.trim(),
           latitude: pendingLocation.latitude,
           longitude: pendingLocation.longitude,
@@ -297,14 +269,13 @@ export default function ActiveTrackingScreen() {
           triggerType: modalType,
           notificationMessage: modalMessage.trim(),
           ...(currentTripId !== null ? { tripId: currentTripId } : {}),
-        }),
+        },
       });
-      if (!response.ok) throw new Error('create request failed');
-      const created: GeofenceTrigger = await response.json();
       setTriggers((prev) => [...prev, created]);
+      setListStatus('ready');
       closeCreateModal();
-    } catch {
-      setModalError('Could not add trigger');
+    } catch (error) {
+      setModalError(describeError(error));
     } finally {
       setModalSubmitting(false);
     }
@@ -316,10 +287,7 @@ export default function ActiveTrackingScreen() {
   };
 
   return (
-    <LinearGradient
-      colors={[colors.gradientStart, colors.gradientEnd]}
-      style={styles.container}
-    >
+    <ScreenContainer scrollable={false} testID="tracking-fixed">
       <View style={styles.tripSwitcherWrapper}>
         <TripSwitcher />
       </View>
@@ -358,10 +326,10 @@ export default function ActiveTrackingScreen() {
               center={{ latitude: trigger.latitude, longitude: trigger.longitude }}
               radius={trigger.radiusMeters}
               fillColor={
-                trigger.isActive ? 'rgba(10,125,52,0.2)' : 'rgba(136,136,136,0.15)'
+                trigger.isActive ? 'rgba(255,122,99,0.22)' : 'rgba(136,136,136,0.15)'
               }
               strokeColor={
-                trigger.isActive ? 'rgba(10,125,52,0.8)' : 'rgba(136,136,136,0.6)'
+                trigger.isActive ? 'rgba(255,122,99,0.85)' : 'rgba(136,136,136,0.6)'
               }
               strokeWidth={2}
             />
@@ -392,26 +360,27 @@ export default function ActiveTrackingScreen() {
       {trackingStatus === 'checking' && (
         <Text style={styles.note}>Checking tracking status…</Text>
       )}
-      {trackingStatus === 'active' && (
+      {trackingStatus !== 'checking' && (
         <Text style={styles.note} testID="tracking-status">
-          Tracking: active
-        </Text>
-      )}
-      {trackingStatus === 'unavailable' && (
-        <Text style={styles.note} testID="tracking-status">
-          Tracking unavailable
+          {trackingStatus === 'active' ? 'Tracking: active' : 'Tracking unavailable'}
+          {trackingDetail ? ` — ${trackingDetail}` : ''}
         </Text>
       )}
 
       <View style={[styles.card, styles.listCard]}>
-        <View style={styles.listSection}>
-        {listStatus === 'loading' && <ActivityIndicator />}
-        {listStatus === 'error' && (
-          <Text testID="triggers-error">Could not load triggers</Text>
-        )}
-        {listStatus === 'ready' && triggers.length === 0 && (
-          <Text testID="triggers-empty">No geofence triggers yet</Text>
-        )}
+        <ScrollView
+          style={styles.listSection}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          testID="triggers-scroll"
+        >
+        <ListState
+          status={listStatus}
+          emptyMessage="No geofence triggers yet"
+          errorMessage={listError ?? undefined}
+          onRetry={retryTriggers}
+          testIDPrefix="triggers"
+        />
         {listStatus === 'ready' &&
           triggers.map((trigger) => (
             <View key={trigger.id} style={styles.triggerRow}>
@@ -449,7 +418,7 @@ export default function ActiveTrackingScreen() {
               )}
             </View>
           ))}
-        </View>
+        </ScrollView>
       </View>
 
       <Modal visible={pendingLocation !== null} transparent animationType="fade">
@@ -540,17 +509,11 @@ export default function ActiveTrackingScreen() {
           </View>
         </View>
       </Modal>
-    </LinearGradient>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 60,
-    paddingHorizontal: 16,
-    paddingBottom: 120,
-  },
   tripSwitcherWrapper: {
     marginBottom: spacing.sm,
   },
@@ -585,10 +548,13 @@ const styles = StyleSheet.create({
   listSection: {
     flex: 1,
   },
+  listContent: {
+    paddingBottom: spacing.sm,
+  },
   triggerRow: {
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ccc',
+    borderBottomColor: colors.cardBorder,
   },
   triggerRowMain: {
     flexDirection: 'row',
@@ -602,10 +568,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   triggerInactive: {
-    color: '#999',
+    color: colors.textSecondary,
   },
   deleteButton: {
-    color: '#c0392b',
+    color: colors.danger,
     fontWeight: '600',
   },
   modalOverlay: {
@@ -626,11 +592,11 @@ const styles = StyleSheet.create({
   },
   modalCoords: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
   },
   modalInput: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#999',
+    borderColor: colors.textSecondary,
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
@@ -641,17 +607,17 @@ const styles = StyleSheet.create({
   typeOption: {
     flex: 1,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#999',
+    borderColor: colors.textSecondary,
     paddingVertical: 8,
     alignItems: 'center',
   },
   typeOptionSelected: {
-    borderColor: '#0a7d34',
-    backgroundColor: 'rgba(10,125,52,0.1)',
+    borderColor: colors.accent,
+    backgroundColor: 'rgba(255,122,99,0.12)',
   },
   rowError: {
     fontSize: 12,
-    color: '#c0392b',
+    color: colors.danger,
   },
   modalActions: {
     flexDirection: 'row',
@@ -660,9 +626,9 @@ const styles = StyleSheet.create({
   },
   modalActionText: {
     fontWeight: '600',
-    color: '#0a7d34',
+    color: colors.accent,
   },
   modalActionDisabled: {
-    color: '#aaa',
+    color: colors.textSecondary,
   },
 });

@@ -42,17 +42,19 @@ Mockups show: 3-screen onboarding (Welcome/Location/Notifications), a new 5th "H
 
 Home introduces two concepts that don't exist in the data model yet: a **Trip** (multi-trip selector — "Tokyo / Lisbon / +") and a persisted **alert/event log** ("Entered Shinjuku Ward · 5:41 AM"). Both are new backend entities, not styling.
 
-## Phase 2–6 — Redesign `[~]` in progress
+## Phase 2–6 — Redesign `[x]` done (all merged 2026-08-09)
 
 All issues filed 2026-08-09, all labeled `agent-ready` the same day and run through `/loop /clutch-build` + `/loop /clutch-review`.
 
 | Issue | Loop | Phase | Stacking | Status |
 |---|---|---|---|---|
 | CLU-16 | 12 | Reskin | independent, off `main` | `[x]` done — merged #11 |
-| CLU-17 | 13 | Trip data model | independent, off `main` | `[~]` PR #12 open, `loop-approved`, conflict resolved (see incident below) — awaiting merge |
-| CLU-18 | 14 | Alert/event log | **stacked on CLU-17's branch** | `[ ]` blocked on CLU-17 merging |
-| CLU-19 | 15 | Home dashboard | **stacked on CLU-18's branch** (→ CLU-17 transitively) | `[ ]` blocked on CLU-18 merging |
-| CLU-20 | 16 | Onboarding | independent, off `main` | `[~]` PR #13 open — awaiting review/merge |
+| CLU-17 | 13 | Trip data model | independent, off `main` | `[x]` done — merged #12 (2026-08-09) |
+| CLU-18 | 14 | Alert/event log | **stacked on CLU-17's branch** | `[x]` done — merged #14 (2026-08-09) |
+| CLU-19 | 15 | Home dashboard | **stacked on CLU-18's branch** (→ CLU-17 transitively) | `[x]` done — merged #15 (2026-08-09) |
+| CLU-20 | 16 | Onboarding | independent, off `main` | `[x]` done — merged #13 (2026-08-09) |
+
+**Verified 2026-08-15:** all four PRs confirmed `MERGED` via `gh pr list`, 78 pytest passing (up from 72 at last incident checkpoint), `tsc --noEmit` clean from `app/`. This table had drifted behind the actual merge state for several days — none of CLU-17/18/19/20 were caught as done until this cross-check, despite having merged the same day they were opened.
 
 ### Incident: CLU-16/CLU-17 merge conflict (2026-08-09)
 
@@ -94,9 +96,23 @@ CLU-20 (onboarding) ── independent, own branch off main
 
 **Phase 6 — Onboarding (CLU-20).** 3-screen first-run flow, shown once, replacing the ad-hoc permission prompts currently scattered across Planner and Active Tracking. No dependencies.
 
+## Phase 7 — MVP hardening `[x]` code complete (2026-08-16), device pass pending
+
+Branch `claude/mvp-hardening-round-1`. Driven by an audit against a device checkpoint that had not happened since PR #7 (CLU-11).
+
+**Round 1 — defects.** Four of five screens rendered lists into a fixed `View` with no scroll container, making every row past the first screenful permanently unreachable; `tsc` and `pytest` were green the whole time, because every gate sat below the pixel. Also fixed: naive UTC serialization that skewed Home's relative timestamps by the device's offset; `SafeAreaProvider` installed as a dependency but never mounted, with `paddingTop: 60` hardcoded across 8 files; trips that could not be renamed or deleted; trip selection that did not survive a restart; trigger deletion orphaning its events; Home resolving geolocation twice per focus; 40 off-theme color literals that survived the CLU-16 reskin.
+
+**Round 2 — ship-readiness and product.** The API base URL was redeclared in six files defaulting to `localhost`, so the app could not work off this machine's WiFi — now centralized in `app/src/api.ts`, with a deploy blueprint at `server/render.yaml`. Failed requests rendered as empty lists, which reads to a tester as data loss — now a distinct error state with retry. Tracking moved from a foreground `watchPositionAsync` haversine loop to OS background geofencing, so alerts finally fire with the app closed, which is what onboarding always promised. Trips can carry coordinates. Home reconciled against the mockup: real SVG progress rings, translucent cards, caps section labels, and a weather high/low the API now returns.
+
+**Gates:** 105 pytest (from 78), 78 frontend tests (from **zero**), `tsc --noEmit` clean. Strategy and device checklist in [TESTING.md](TESTING.md).
+
 ## Known risks
 
-- Phase 3 is where a scope surprise is most likely — re-confirm size once the actual diff is visible.
+- **Open:** no device pass yet for anything since CLU-11. Phase 7's rebuild is the first dev client that can even run current `main` — three native modules were added after the previous binary was built. Background geofencing in particular cannot be verified by any automated layer.
+- **Open:** the backend is not deployed, so only devices on this machine's LAN can use the app and it cannot be handed to a tester. `server/render.yaml` is ready; deploying needs a Render account.
+- Free-tier deployment caveats that will affect testers: the service sleeps after ~15 min idle (~50s cold start, which looks like a timeout in the app), and free Postgres expires after 30 days.
+- **No migration tooling.** `create_all` only creates missing tables; it never adds a column to an existing one. After a schema change run `python seed_demo.py --reset`.
+- Phase 3's scope risk resolved without a size surprise — the actual incident was the CLU-16/CLU-17 file collision (see above), not a Phase 3 scope blowup.
 - `expo-notifications` is permanently broken on Expo Go/Android (Expo's own intentional design, SDK 53+) — testing must go through an EAS dev-client build from here on, not Expo Go.
 - Each EAS dev-client rebuild takes ~10–15 min — batch device-testing checkpoints rather than rebuilding after every change.
 

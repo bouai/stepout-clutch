@@ -52,6 +52,9 @@ export interface Weather {
   temperatureCelsius: number;
   windSpeedKmh: number;
   condition: WeatherCondition;
+  /** Today's forecast high; absent if the provider omitted the daily block. */
+  highCelsius: number | null;
+  lowCelsius: number | null;
   fetchedAt: string;
 }
 

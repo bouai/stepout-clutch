@@ -10,6 +10,11 @@ export const colors = {
   accent: '#FF7A63',
   accentDark: '#0a7d34',
   danger: '#c0392b',
+  /** Translucent card, per the mockups — the gradient shows through. */
+  cardTranslucent: 'rgba(255,255,255,0.18)',
+  cardTranslucentBorder: 'rgba(255,255,255,0.28)',
+  ringTrack: 'rgba(26,26,46,0.12)',
+  sectionLabel: 'rgba(255,255,255,0.75)',
   navBackground: 'rgba(61,44,107,0.92)',
   navActiveCircle: '#FF7A63',
   navIcon: 'rgba(255,255,255,0.7)',

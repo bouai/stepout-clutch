@@ -1,5 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
+import { colors } from '../../theme';
+
 interface Props {
   total: number;
   activeIndex: number;
@@ -33,7 +35,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.4)',
   },
   dotActive: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     width: 20,
   },
 });

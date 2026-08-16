@@ -1,6 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, PlainSerializer
 from pydantic.alias_generators import to_camel
 
 from app.models import (
@@ -9,6 +10,22 @@ from app.models import (
     GeofenceTriggerType,
     InventoryCategory,
 )
+
+
+def serialize_utc(value: datetime) -> str:
+    """Render a datetime as an explicitly-UTC ISO 8601 string.
+
+    Values read back from SQLite are naive even though they were stored as UTC,
+    and an offset-less string is parsed as *local* time by JS `new Date()` —
+    which silently skewed every relative timestamp in the app by the device's
+    UTC offset. Naive values are therefore assumed UTC and stamped as such.
+    """
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+UtcDateTime = Annotated[datetime, PlainSerializer(serialize_utc, return_type=str)]
 
 
 class CamelModel(BaseModel):
@@ -31,7 +48,13 @@ class TripCreate(TripBase):
 
 class Trip(TripBase):
     id: int
-    created_at: datetime
+    created_at: UtcDateTime
+
+
+class TripUpdate(CamelModel):
+    name: str | None = Field(default=None, min_length=1)
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class ChecklistItemBase(CamelModel):
@@ -51,7 +74,7 @@ class ChecklistItemCreate(ChecklistItemBase):
 
 class ChecklistItem(ChecklistItemBase):
     id: int
-    created_at: datetime
+    created_at: UtcDateTime
 
 
 class ChecklistItemUpdate(CamelModel):
@@ -145,7 +168,8 @@ class GeofenceEventCreate(GeofenceEventBase):
 
 class GeofenceEvent(GeofenceEventBase):
     id: int
-    fired_at: datetime
+    fired_at: UtcDateTime
+    trip_id: int | None = None
 
 
 class Distance(CamelModel):
@@ -157,4 +181,8 @@ class Weather(CamelModel):
     temperature_celsius: float
     wind_speed_kmh: float
     condition: ChecklistWeatherCondition
-    fetched_at: datetime
+    # Optional: the daily forecast block is a nicety for Home's weather card,
+    # and its absence must not fail the request.
+    high_celsius: float | None = None
+    low_celsius: float | None = None
+    fetched_at: UtcDateTime

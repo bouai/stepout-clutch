@@ -1,6 +1,5 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,17 +13,18 @@ import {
 } from 'react-native';
 import MapView, { LatLng, Marker, Polyline } from 'react-native-maps';
 
+import ListState, { type LoadStatus } from '../components/ListState';
+import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
+import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
 import type { Distance, SavedDestination } from '../types/models';
 import { cardShadow, colors, radius, spacing } from '../theme';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
 const DELTA = 0.05;
 
-type ListStatus = 'loading' | 'ready' | 'error';
 type DistanceStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 async function resolveCoordinates(): Promise<{
@@ -66,7 +66,8 @@ export default function TransitScreen() {
   const [usedDefaultLocation, setUsedDefaultLocation] = useState(false);
 
   const [destinations, setDestinations] = useState<SavedDestination[]>([]);
-  const [listStatus, setListStatus] = useState<ListStatus>('loading');
+  const [listStatus, setListStatus] = useState<LoadStatus>('loading');
+  const [listError, setListError] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
 
   const [selected, setSelected] = useState<SavedDestination | null>(null);
@@ -96,35 +97,40 @@ export default function TransitScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadDestinations() {
+  const loadDestinations = useCallback(
+    async (isCancelled: () => boolean) => {
       try {
-        const url =
-          currentTripId !== null
-            ? `${API_URL}/saved-destinations?tripId=${currentTripId}`
-            : `${API_URL}/saved-destinations`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('saved-destinations request failed');
-        const data: SavedDestination[] = await response.json();
-        if (!cancelled) {
+        const data = await apiRequest<SavedDestination[]>(
+          '/saved-destinations',
+          { query: { tripId: currentTripId } }
+        );
+        if (!isCancelled()) {
           setDestinations(data);
-          setListStatus('ready');
+          setListError(null);
+          setListStatus(data.length === 0 ? 'empty' : 'ready');
         }
-      } catch {
-        if (!cancelled) {
+      } catch (error) {
+        if (!isCancelled()) {
+          setListError(describeError(error));
           setListStatus('error');
         }
       }
-    }
+    },
+    [currentTripId]
+  );
 
-    loadDestinations();
+  function retryDestinations() {
+    setListStatus('loading');
+    loadDestinations(() => false);
+  }
 
+  useEffect(() => {
+    let cancelled = false;
+    loadDestinations(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [currentTripId]);
+  }, [loadDestinations]);
 
   async function selectDestination(destination: SavedDestination) {
     setSelected(destination);
@@ -137,11 +143,15 @@ export default function TransitScreen() {
     }
 
     try {
-      const response = await fetch(
-        `${API_URL}/saved-destinations/${destination.id}/distance?lat=${currentLocation.latitude}&lon=${currentLocation.longitude}`
+      const data = await apiRequest<Distance>(
+        `/saved-destinations/${destination.id}/distance`,
+        {
+          query: {
+            lat: currentLocation.latitude,
+            lon: currentLocation.longitude,
+          },
+        }
       );
-      if (!response.ok) throw new Error('distance request failed');
-      const data: Distance = await response.json();
       setDistance(data);
       setDistanceStatus('ready');
     } catch {
@@ -163,22 +173,20 @@ export default function TransitScreen() {
     setCreateError(null);
 
     try {
-      const response = await fetch(`${API_URL}/saved-destinations`, {
+      const created = await apiRequest<SavedDestination>('/saved-destinations', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           label: trimmed,
           latitude: pendingLocation.latitude,
           longitude: pendingLocation.longitude,
           ...(currentTripId !== null ? { tripId: currentTripId } : {}),
-        }),
+        },
       });
-      if (!response.ok) throw new Error('create request failed');
-      const created: SavedDestination = await response.json();
       setDestinations((prev) => [...prev, created]);
+      setListStatus('ready');
       closeCreateModal();
-    } catch {
-      setCreateError('Could not add destination');
+    } catch (error) {
+      setCreateError(describeError(error));
     } finally {
       setCreateSubmitting(false);
     }
@@ -216,11 +224,10 @@ export default function TransitScreen() {
     }
 
     try {
-      const response = await fetch(
-        `${API_URL}/saved-destinations/${destination.id}`,
-        { method: 'DELETE' }
-      );
-      if (!response.ok) throw new Error('delete request failed');
+      await apiRequest<void>(`/saved-destinations/${destination.id}`, {
+        method: 'DELETE',
+      });
+      if (destinations.length === 1) setListStatus('empty');
     } catch {
       setDestinations((prev) => {
         const next = [...prev];
@@ -237,10 +244,7 @@ export default function TransitScreen() {
   const canSubmitCreate = createLabel.trim().length > 0 && !createSubmitting;
 
   return (
-    <LinearGradient
-      colors={[colors.gradientStart, colors.gradientEnd]}
-      style={styles.container}
-    >
+    <ScreenContainer scrollable={false} testID="transit-fixed">
       <View style={styles.tripSwitcherWrapper}>
         <TripSwitcher />
       </View>
@@ -303,13 +307,13 @@ export default function TransitScreen() {
 
       <View style={[styles.card, styles.listCard]}>
         <View style={styles.listSection}>
-          {listStatus === 'loading' && <ActivityIndicator />}
-          {listStatus === 'error' && (
-            <Text testID="destinations-error">Could not load saved destinations</Text>
-          )}
-          {listStatus === 'ready' && destinations.length === 0 && (
-            <Text testID="destinations-empty">No saved destinations yet</Text>
-          )}
+          <ListState
+            status={listStatus}
+            emptyMessage="No saved destinations yet"
+            errorMessage={listError ?? undefined}
+            onRetry={retryDestinations}
+            testIDPrefix="destinations"
+          />
           {listStatus === 'ready' && destinations.length > 0 && (
             <FlatList
               data={destinations}
@@ -413,17 +417,11 @@ export default function TransitScreen() {
           </View>
         </View>
       </Modal>
-    </LinearGradient>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 60,
-    paddingHorizontal: 16,
-    paddingBottom: 120,
-  },
   tripSwitcherWrapper: {
     marginBottom: spacing.sm,
   },
@@ -461,7 +459,7 @@ const styles = StyleSheet.create({
   destinationRow: {
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ccc',
+    borderBottomColor: colors.cardBorder,
   },
   destinationRowMain: {
     flexDirection: 'row',
@@ -475,12 +473,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   deleteButton: {
-    color: '#c0392b',
+    color: colors.danger,
     fontWeight: '600',
   },
   rowError: {
     fontSize: 12,
-    color: '#c0392b',
+    color: colors.danger,
     marginTop: 4,
   },
   distanceSection: {},
@@ -502,11 +500,11 @@ const styles = StyleSheet.create({
   },
   modalCoords: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
   },
   modalInput: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#999',
+    borderColor: colors.textSecondary,
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
@@ -517,9 +515,9 @@ const styles = StyleSheet.create({
   },
   modalActionText: {
     fontWeight: '600',
-    color: '#0a7d34',
+    color: colors.accent,
   },
   modalActionDisabled: {
-    color: '#aaa',
+    color: colors.textSecondary,
   },
 });

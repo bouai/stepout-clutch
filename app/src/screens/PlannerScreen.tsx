@@ -1,6 +1,5 @@
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -14,7 +13,10 @@ import {
   View,
 } from 'react-native';
 
+import ListState, { type LoadStatus } from '../components/ListState';
+import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
+import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
 import type {
   ChecklistCategory,
@@ -22,9 +24,8 @@ import type {
   InventoryItem,
   Weather,
 } from '../types/models';
-import { cardShadow, colors, radius, spacing, typography } from '../theme';
+import { cardShadow, colors, radius, spacing } from '../theme';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
 
@@ -70,13 +71,10 @@ async function patchChecklistItem(
   id: number,
   patch: Record<string, unknown>
 ): Promise<ChecklistItem> {
-  const response = await fetch(`${API_URL}/checklist-items/${id}`, {
+  return apiRequest<ChecklistItem>(`/checklist-items/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
+    body: patch,
   });
-  if (!response.ok) throw new Error('patch request failed');
-  return response.json();
 }
 
 export default function PlannerScreen() {
@@ -86,7 +84,9 @@ export default function PlannerScreen() {
   const [weatherStatus, setWeatherStatus] = useState<WeatherStatus>('loading');
   const [usedDefaultLocation, setUsedDefaultLocation] = useState(false);
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
-  const [checklistLoading, setChecklistLoading] = useState(true);
+  const [checklistStatus, setChecklistStatus] = useState<LoadStatus>('loading');
+  const [checklistError, setChecklistError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
 
@@ -112,11 +112,9 @@ export default function PlannerScreen() {
       setUsedDefaultLocation(usedDefault);
 
       try {
-        const response = await fetch(
-          `${API_URL}/weather?lat=${latitude}&lon=${longitude}`
-        );
-        if (!response.ok) throw new Error('weather request failed');
-        const data: Weather = await response.json();
+        const data = await apiRequest<Weather>('/weather', {
+          query: { lat: latitude, lon: longitude },
+        });
         if (!cancelled) {
           setWeather(data);
           setWeatherStatus('ready');
@@ -135,70 +133,71 @@ export default function PlannerScreen() {
     };
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
+  const loadLists = useCallback(
+    async (isCancelled: () => boolean) => {
+      const tripQuery = currentTripId !== null ? `?tripId=${currentTripId}` : '';
 
       async function loadChecklist() {
         try {
-          const url =
-            currentTripId !== null
-              ? `${API_URL}/checklist-items?tripId=${currentTripId}`
-              : `${API_URL}/checklist-items`;
-          const response = await fetch(url);
-          if (!response.ok) throw new Error('checklist request failed');
-          const data: ChecklistItem[] = await response.json();
-          if (!cancelled) {
+          const data = await apiRequest<ChecklistItem[]>(
+            `/checklist-items${tripQuery}`
+          );
+          if (!isCancelled()) {
             setChecklistItems(data);
+            setChecklistError(null);
+            setChecklistStatus(data.length === 0 ? 'empty' : 'ready');
           }
-        } catch {
-          if (!cancelled) {
-            setChecklistItems([]);
-          }
-        } finally {
-          if (!cancelled) {
-            setChecklistLoading(false);
+        } catch (error) {
+          // Preserve what is on screen and name the failure, rather than
+          // blanking to something that reads as 'you have no items'.
+          if (!isCancelled()) {
+            setChecklistError(describeError(error));
+            setChecklistStatus('error');
           }
         }
       }
 
-      loadChecklist();
-
-      return () => {
-        cancelled = true;
-      };
-    }, [currentTripId])
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-
       async function loadInventory() {
         try {
-          const url =
-            currentTripId !== null
-              ? `${API_URL}/inventory-items?tripId=${currentTripId}`
-              : `${API_URL}/inventory-items`;
-          const response = await fetch(url);
-          if (!response.ok) throw new Error('inventory request failed');
-          const data: InventoryItem[] = await response.json();
-          if (!cancelled) {
+          const data = await apiRequest<InventoryItem[]>(
+            `/inventory-items${tripQuery}`
+          );
+          if (!isCancelled()) {
             setInventoryItems(data);
           }
         } catch {
-          if (!cancelled) {
+          if (!isCancelled()) {
             setInventoryItems([]);
           }
         }
       }
 
-      loadInventory();
+      await Promise.all([loadChecklist(), loadInventory()]);
+    },
+    [currentTripId]
+  );
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadLists(() => false);
+    setRefreshing(false);
+  }
+
+  function retryChecklist() {
+    setChecklistStatus('loading');
+    loadLists(() => false);
+  }
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+
+      loadLists(() => cancelled);
 
       return () => {
         cancelled = true;
       };
-    }, [currentTripId])
+    }, [loadLists])
   );
 
   function clearRowError(itemId: number) {
@@ -295,10 +294,8 @@ export default function PlannerScreen() {
     setChecklistItems((prev) => prev.filter((row) => row.id !== item.id));
 
     try {
-      const response = await fetch(`${API_URL}/checklist-items/${item.id}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) throw new Error('delete request failed');
+      await apiRequest<void>(`/checklist-items/${item.id}`, { method: 'DELETE' });
+      if (checklistItems.length === 1) setChecklistStatus('empty');
     } catch {
       setChecklistItems((prev) => {
         const next = [...prev];
@@ -333,24 +330,22 @@ export default function PlannerScreen() {
     setModalError(null);
 
     try {
-      const response = await fetch(`${API_URL}/checklist-items`, {
+      const created = await apiRequest<ChecklistItem>('/checklist-items', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           label: trimmed,
           category: modalCategory,
           ...(modalInventoryItemId !== null
             ? { inventoryItemId: modalInventoryItemId }
             : {}),
           ...(currentTripId !== null ? { tripId: currentTripId } : {}),
-        }),
+        },
       });
-      if (!response.ok) throw new Error('create request failed');
-      const created: ChecklistItem = await response.json();
       setChecklistItems((prev) => [...prev, created]);
+      setChecklistStatus('ready');
       closeAddModal();
-    } catch {
-      setModalError('Could not add item');
+    } catch (error) {
+      setModalError(describeError(error));
     } finally {
       setModalSubmitting(false);
     }
@@ -359,12 +354,12 @@ export default function PlannerScreen() {
   const canSubmitModal = modalLabel.trim().length > 0 && modalCategory !== null;
 
   return (
-    <LinearGradient
-      colors={[colors.gradientStart, colors.gradientEnd]}
-      style={styles.container}
+    <ScreenContainer
+      title="Planner"
+      onRefresh={handleRefresh}
+      refreshing={refreshing}
+      testID="planner-scroll"
     >
-      <Text style={styles.title}>Planner</Text>
-
       <TripSwitcher />
 
       <View style={styles.card}>
@@ -395,8 +390,14 @@ export default function PlannerScreen() {
         </View>
 
         <View style={styles.checklistSection}>
-          {checklistLoading && <ActivityIndicator />}
-          {!checklistLoading &&
+          <ListState
+            status={checklistStatus}
+            emptyMessage="No checklist items yet"
+            errorMessage={checklistError ?? undefined}
+            onRetry={retryChecklist}
+            testIDPrefix="checklist"
+          />
+          {checklistStatus === 'ready' &&
             checklistItems.map((item) => (
             <View key={item.id} style={styles.checklistRow}>
               <View style={styles.checklistRowMain}>
@@ -543,21 +544,11 @@ export default function PlannerScreen() {
           </View>
         </View>
       </Modal>
-    </LinearGradient>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 60,
-    paddingHorizontal: 16,
-    paddingBottom: 120,
-  },
-  title: {
-    ...typography.heading,
-    marginBottom: spacing.md,
-  },
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.card,
@@ -565,13 +556,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     ...cardShadow,
   },
-  checklistCard: {
-    flex: 1,
-  },
+  checklistCard: {},
   weatherSection: {},
   note: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
     marginTop: 4,
   },
   checklistHeader: {
@@ -585,7 +574,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   addButton: {
-    color: '#0a7d34',
+    color: colors.accent,
     fontWeight: '600',
   },
   checklistSection: {
@@ -594,7 +583,7 @@ const styles = StyleSheet.create({
   checklistRow: {
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ccc',
+    borderBottomColor: colors.cardBorder,
   },
   checklistRowMain: {
     flexDirection: 'row',
@@ -610,7 +599,7 @@ const styles = StyleSheet.create({
   labelInput: {
     flex: 1,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#999',
+    borderColor: colors.textSecondary,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
@@ -621,19 +610,19 @@ const styles = StyleSheet.create({
   todayTag: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#0a7d34',
+    color: colors.accent,
   },
   inventoryBadge: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
   },
   deleteButton: {
-    color: '#c0392b',
+    color: colors.danger,
     fontWeight: '600',
   },
   rowError: {
     fontSize: 12,
-    color: '#c0392b',
+    color: colors.danger,
     marginTop: 4,
   },
   modalOverlay: {
@@ -650,13 +639,13 @@ const styles = StyleSheet.create({
   },
   modalInput: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#999',
+    borderColor: colors.textSecondary,
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
   pickerLabel: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
   },
   modalActions: {
     flexDirection: 'row',
@@ -665,9 +654,9 @@ const styles = StyleSheet.create({
   },
   modalActionText: {
     fontWeight: '600',
-    color: '#0a7d34',
+    color: colors.accent,
   },
   modalActionDisabled: {
-    color: '#aaa',
+    color: colors.textSecondary,
   },
 });

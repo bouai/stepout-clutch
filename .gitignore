@@ -1,0 +1,17 @@
+# Local SQLite dev databases (created on first run; not shared state)
+stepout.db
+server/stepout.db
+*.db-journal
+
+# Tooling caches
+.pytest_cache/
+__pycache__/
+.serena/
+
+# Node
+node_modules/
+
+# Downloaded build artifacts (EAS APKs are ~200MB; keep them out of git)
+Test applications/
+*.apk
+*.aab

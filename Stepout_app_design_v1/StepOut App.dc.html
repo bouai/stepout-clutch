@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<style>
+body{margin:0;background:#000;}
+@keyframes so-pulse{0%{box-shadow:0 0 0 0 rgba(255,107,74,0.55);}70%{box-shadow:0 0 0 12px rgba(255,107,74,0);}100%{box-shadow:0 0 0 0 rgba(255,107,74,0);}}
+@keyframes so-pulse-blue{0%{box-shadow:0 0 0 0 rgba(90,170,255,0.55);}70%{box-shadow:0 0 0 10px rgba(90,170,255,0);}100%{box-shadow:0 0 0 0 rgba(90,170,255,0);}}
+a{color:#FF6B4A;} a:hover{color:#FF8A6E;}
+</style>
+</helmet>
+<div style="min-height:100vh;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center;padding:56px 24px;position:relative;overflow:hidden;background:linear-gradient(160deg,#FF9966 0%,#FF5E62 28%,#6A3093 65%,#1B1442 100%);font-family:-apple-system,'SF Pro',system-ui,sans-serif;">
+  <div style="position:absolute;top:-120px;left:-100px;width:420px;height:420px;border-radius:50%;background:rgba(255,180,120,0.35);filter:blur(90px);"></div>
+  <div style="position:absolute;bottom:-140px;right:-120px;width:460px;height:460px;border-radius:50%;background:rgba(90,60,180,0.4);filter:blur(100px);"></div>
+
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{true}}" hint-size="402,874">
+    <div style="height:100%;width:100%;position:relative;overflow:hidden;background:linear-gradient(165deg,#FF9966 0%,#FF5E62 30%,#6A3093 68%,#1B1442 100%);">
+
+      <sc-if value="{{isOnboarding}}" hint-placeholder-val="{{true}}">
+        <div style="height:100%;display:flex;flex-direction:column;padding:70px 28px 40px;box-sizing:border-box;position:relative;">
+          <button onClick="{{skipOnboard}}" style="position:absolute;top:70px;right:28px;background:none;border:none;color:rgba(255,255,255,0.75);font-size:15px;font-weight:600;cursor:pointer;padding:0;">Skip</button>
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:22px;">
+            <div style="width:96px;height:96px;border-radius:48px;background:rgba(255,255,255,0.18);backdrop-filter:blur(20px);border:0.5px solid rgba(255,255,255,0.35);display:flex;align-items:center;justify-content:center;">
+              <sc-if value="{{isStep0}}" hint-placeholder-val="{{true}}">
+                <svg width="42" height="42" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.6 6.2L21 9l-5 4.7L17.4 21 12 17.3 6.6 21 8 13.7 3 9l6.4-.8L12 2z" stroke="#fff" stroke-width="1.5" stroke-linejoin="round" fill="rgba(255,255,255,0.15)"/></svg>
+              </sc-if>
+              <sc-if value="{{isStep1}}">
+                <svg width="38" height="38" viewBox="0 0 24 24" fill="none"><path d="M12 21s7-6.1 7-11.5A7 7 0 105 9.5C5 14.9 12 21 12 21z" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.6" stroke="#fff" stroke-width="1.6"/></svg>
+              </sc-if>
+              <sc-if value="{{isStep2}}">
+                <svg width="38" height="38" viewBox="0 0 24 24" fill="none"><path d="M18 16v-5a6 6 0 10-12 0v5l-2 3h16l-2-3z" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/><path d="M9.5 20a2.5 2.5 0 005 0" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>
+              </sc-if>
+            </div>
+            <sc-if value="{{isStep0}}" hint-placeholder-val="{{true}}"><div style="font-size:28px;font-weight:700;color:#fff;">Welcome to StepOut</div></sc-if>
+            <sc-if value="{{isStep1}}"><div style="font-size:28px;font-weight:700;color:#fff;">Enable Location</div></sc-if>
+            <sc-if value="{{isStep2}}"><div style="font-size:28px;font-weight:700;color:#fff;">Stay in the Know</div></sc-if>
+            <sc-if value="{{isStep0}}" hint-placeholder-val="{{true}}"><div style="font-size:16px;line-height:1.5;color:rgba(255,255,255,0.8);max-width:280px;">Plan smarter trips with weather-aware checklists, packing lists, and live tracking — all in one place.</div></sc-if>
+            <sc-if value="{{isStep1}}"><div style="font-size:16px;line-height:1.5;color:rgba(255,255,255,0.8);max-width:280px;">StepOut uses your location for local weather, distance to saved places, and live trip tracking.</div></sc-if>
+            <sc-if value="{{isStep2}}"><div style="font-size:16px;line-height:1.5;color:rgba(255,255,255,0.8);max-width:280px;">Turn on notifications to get alerted the moment you enter or leave a saved zone.</div></sc-if>
+          </div>
+          <div style="display:flex;justify-content:center;gap:8px;margin-bottom:24px;">
+            <span style="width:8px;height:8px;border-radius:4px;background:{{dot0Bg}};transition:background 0.2s;"></span>
+            <span style="width:8px;height:8px;border-radius:4px;background:{{dot1Bg}};transition:background 0.2s;"></span>
+            <span style="width:8px;height:8px;border-radius:4px;background:{{dot2Bg}};transition:background 0.2s;"></span>
+          </div>
+          <button onClick="{{advanceOnboard}}" style="height:54px;border-radius:27px;background:#FF6B4A;border:none;color:#fff;font-size:17px;font-weight:600;cursor:pointer;box-shadow:0 8px 20px rgba(255,107,74,0.4);">
+            <sc-if value="{{isStep0}}" hint-placeholder-val="{{true}}"><span>Continue</span></sc-if>
+            <sc-if value="{{isStep1}}"><span>Allow Location</span></sc-if>
+            <sc-if value="{{isStep2}}"><span>Allow Notifications & Finish</span></sc-if>
+          </button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isApp}}" hint-placeholder-val="{{false}}">
+        <div style="height:100%;display:flex;flex-direction:column;">
+          <div style="padding:60px 20px 14px;flex-shrink:0;">
+            <sc-if value="{{isHome}}" hint-placeholder-val="{{true}}">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+                <div style="color:rgba(255,255,255,0.85);font-size:14px;font-weight:600;letter-spacing:0.3px;">StepOut</div>
+                <div style="width:34px;height:34px;border-radius:17px;background:rgba(255,255,255,0.22);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:600;">A</div>
+              </div>
+              <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;">
+                <sc-for list="{{tripChips}}" as="trip" hint-placeholder-count="2">
+                  <button onClick="{{trip.select}}" style="flex-shrink:0;padding:9px 16px;border-radius:18px;border:0.5px solid rgba(255,255,255,0.3);background:{{trip.chipBg}};color:{{trip.chipColor}};font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;">{{trip.name}}</button>
+                </sc-for>
+                <button style="flex-shrink:0;width:36px;border-radius:18px;border:0.5px dashed rgba(255,255,255,0.4);background:transparent;color:#fff;font-size:16px;cursor:pointer;">+</button>
+              </div>
+            </sc-if>
+            <sc-if value="{{isPlan}}"><div style="color:#fff;font-size:30px;font-weight:700;">Plan</div><div style="color:rgba(255,255,255,0.75);font-size:14px;margin-top:2px;">{{currentTripName}} · pre-trip checklist</div></sc-if>
+            <sc-if value="{{isGo}}"><div style="color:#fff;font-size:30px;font-weight:700;">Go</div><div style="color:rgba(255,255,255,0.75);font-size:14px;margin-top:2px;">Saved destinations & distance</div></sc-if>
+            <sc-if value="{{isTrack}}"><div style="color:#fff;font-size:30px;font-weight:700;">Track</div><div style="color:rgba(255,255,255,0.75);font-size:14px;margin-top:2px;">Live location & geofence alerts</div></sc-if>
+            <sc-if value="{{isPack}}"><div style="color:#fff;font-size:30px;font-weight:700;">Pack</div><div style="color:rgba(255,255,255,0.75);font-size:14px;margin-top:2px;">{{currentTripName}} · inventory</div></sc-if>
+          </div>
+
+          <div style="flex:1;overflow-y:auto;padding:0 20px 116px;">
+
+            <sc-if value="{{isHome}}" hint-placeholder-val="{{true}}">
+              <div style="background:linear-gradient(135deg,rgba(255,255,255,0.28),rgba(255,255,255,0.08));backdrop-filter:blur(24px) saturate(180%);border:0.5px solid rgba(255,255,255,0.35);border-radius:28px;padding:22px;margin-bottom:14px;">
+                <div style="display:flex;align-items:center;gap:6px;color:rgba(255,255,255,0.85);font-size:14px;font-weight:600;margin-bottom:6px;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 17a4.5 4.5 0 01-1-8.9A5.5 5.5 0 0116.3 7 4.5 4.5 0 0117 17H7z" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                  {{currentTripLocation}}
+                </div>
+                <div style="display:flex;align-items:flex-end;justify-content:space-between;">
+                  <div style="font-size:52px;font-weight:700;color:#fff;line-height:1;">{{weatherTemp}}°</div>
+                  <div style="text-align:right;color:rgba(255,255,255,0.8);font-size:13px;line-height:1.5;">
+                    <div>H:{{weatherHigh}}° L:{{weatherLow}}°</div>
+                    <div>{{weatherWind}} km/h wind</div>
+                  </div>
+                </div>
+                <div style="color:rgba(255,255,255,0.85);font-size:14px;margin-top:8px;">{{weatherLabel}}</div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+                <div style="background:rgba(255,255,255,0.55);backdrop-filter:blur(24px) saturate(180%);border:0.5px solid rgba(255,255,255,0.6);border-radius:22px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:8px;">
+                  <div style="width:64px;height:64px;border-radius:32px;display:flex;align-items:center;justify-content:center;background:conic-gradient(#FF6B4A {{checklistPct}}%, rgba(60,60,67,0.12) 0deg);">
+                    <div style="width:50px;height:50px;border-radius:25px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#1c1c1e;">{{checklistDone}}/{{checklistTotal}}</div>
+                  </div>
+                  <div style="font-size:13px;font-weight:600;color:#1c1c1e;">Checklist</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.55);backdrop-filter:blur(24px) saturate(180%);border:0.5px solid rgba(255,255,255,0.6);border-radius:22px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:8px;">
+                  <div style="width:64px;height:64px;border-radius:32px;display:flex;align-items:center;justify-content:center;background:conic-gradient(#FF6B4A {{packPct}}%, rgba(60,60,67,0.12) 0deg);">
+                    <div style="width:50px;height:50px;border-radius:25px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#1c1c1e;">{{packDone}}/{{packTotal}}</div>
+                  </div>
+                  <div style="font-size:13px;font-weight:600;color:#1c1c1e;">Packing</div>
+                </div>
+              </div>
+
+              <sc-if value="{{hasTripData}}" hint-placeholder-val="{{true}}">
+                <div style="color:rgba(255,255,255,0.75);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;margin:4px 0 8px;">Up next</div>
+                <button onClick="{{goGo}}" style="width:100%;display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.55);backdrop-filter:blur(24px) saturate(180%);border:0.5px solid rgba(255,255,255,0.6);border-radius:20px;padding:14px 16px;margin-bottom:14px;cursor:pointer;text-align:left;">
+                  <div style="width:38px;height:38px;border-radius:19px;background:rgba(255,107,74,0.16);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 21s7-6.1 7-11.5A7 7 0 105 9.5C5 14.9 12 21 12 21z" stroke="#FF6B4A" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.4" stroke="#FF6B4A" stroke-width="1.8"/></svg>
+                  </div>
+                  <div style="flex:1;">
+                    <div style="font-size:15px;font-weight:600;color:#1c1c1e;">{{selectedDest.label}}</div>
+                    <div style="font-size:13px;color:rgba(60,60,67,0.6);">{{selectedDest.distanceKm}} km away</div>
+                  </div>
+                  <svg width="8" height="14" viewBox="0 0 8 14"><path d="M1 1l6 6-6 6" stroke="rgba(60,60,67,0.35)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+
+                <div style="color:rgba(255,255,255,0.75);font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;margin:4px 0 8px;">Latest alert</div>
+                <button onClick="{{goTrack}}" style="width:100%;display:flex;align-items:center;gap:12px;background:rgba(255,255,255,0.55);backdrop-filter:blur(24px) saturate(180%);border:0.5px solid rgba(255,255,255,0.6);border-radius:20px;padding:14px 16px;cursor:pointer;text-align:left;">
+                  <div style="width:38px;height:38px;border-radius:19px;background:rgba(255,107,74,0.16);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 16v-5a6 6 0 10-12 0v5l-2 3h16l-2-3z" stroke="#FF6B4A" stroke-width="1.8" stroke-linejoin="round"/></svg>
+                  </div>
+                  <div style="flex:1;">
+                    <div style="font-size:15px;font-weight:600;color:#1c1c1e;">{{latestAlertLabel}}</div>
+                    <div style="font-size:13px;color:rgba(60,60,67,0.6);">{{latestAlertTime}}</div>
+                  </div>
+                  <svg width="8" height="14" viewBox="0 0 8 14"><path d="M1 1l6 6-6 6" stroke="rgba(60,60,67,0.35)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+              </sc-if>
+              <sc-if value="{{hasTripData}}" hint-placeholder-val="{{true}}"></sc-if>
+            </sc-if>
+
+            <sc-if value="{{isPlan}}" hint-placeholder-val="{{false}}">
+              <div style="display:flex;align-items:center;gap:10px;background:rgba(255,255,255,0.55);backdrop-filter:blur(24px) saturate(180%);border:0.5px solid rgba(255,255,255,0.6);border-radius:18px;padding:12px 16px;margin-bottom:14px;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M17 15a4 4 0 000-8 5.5 5.5 0 00-10.6 1.6A3.5 3.5 0 007.5 15H17z" stroke="#FF6B4A" stroke-width="1.7" stroke-linejoin="round"/></svg>
+                <div style="flex:1;font-size:14px;color:#1c1c1e;font-weight:600;">{{weatherTemp}}°C · {{weatherLabel}}</div>
+                <div style="font-size:13px;color:rgba(60,60,67,0.6);">{{checklistPct}}% done</div>
+              </div>
+
+              <div style="background:rgba(255,255,255,0.4);border-radius:22px;overflow:hidden;margin-bottom:14px;">
+                <button onClick="{{toggleWeather}}" style="width:100%;display:flex;align-items:center;gap:10px;padding:14px 16px;background:transparent;border:none;cursor:pointer;text-align:left;">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M17 15a4 4 0 000-8 5.5 5.5 0 00-10.6 1.6A3.5 3.5 0 007.5 15H17z" stroke="#1c1c1e" stroke-width="1.7" stroke-linejoin="round"/></svg>
+                  <div style="flex:1;font-size:16px;font-weight:600;color:#1c1c1e;">Weather</div>
+                  <div style="font-size:13px;color:rgba(60,60,67,0.55);">{{weatherCount}}</div>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style="transform:rotate({{weatherChevronDeg}}deg);transition:transform 0.2s;"><path d="M6 9l6 6 6-6" stroke="rgba(60,60,67,0.5)" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <sc-if value="{{weatherCollapsed}}" hint-placeholder-val="{{false}}"></sc-if>
+                <sc-if value="{{weatherCollapsed}}" hint-placeholder-val="{{false}}">
+                </sc-if>
+                <div style="padding:0 12px 10px;">
+                <sc-for list="{{weatherItems}}" as="item" hint-placeholder-count="2">
+                  <sc-if value="{{weatherCollapsed}}" hint-placeholder-val="{{false}}"></sc-if>
+                </sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+          </div>
+
+          <div style="position:absolute;bottom:0;left:0;right:0;display:flex;justify-content:center;padding-bottom:26px;pointer-events:none;">
+            <div style="pointer-events:auto;display:flex;gap:2px;background:rgba(30,20,40,0.4);backdrop-filter:blur(24px) saturate(180%);border:0.5px solid rgba(255,255,255,0.25);border-radius:26px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,0.25);">
+              <button onClick="{{goHome}}" style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 13px;border-radius:18px;border:none;cursor:pointer;background:{{tabHomeBg}};color:{{tabHomeColor}};">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M4 11l8-7 8 7v9a1 1 0 01-1 1h-4v-6H9v6H5a1 1 0 01-1-1v-9z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+                <span style="font-size:10px;font-weight:600;">Home</span>
+              </button>
+              <button onClick="{{goPlan}}" style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 13px;border-radius:18px;border:none;cursor:pointer;background:{{tabPlanBg}};color:{{tabPlanColor}};">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none"><rect x="5" y="4" width="14" height="17" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M9 3.5h6v2H9z" stroke="currentColor" stroke-width="1.4"/><path d="M8.5 12l2 2 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span style="font-size:10px;font-weight:600;">Plan</span>
+              </button>
+              <button onClick="{{goGo}}" style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 13px;border-radius:18px;border:none;cursor:pointer;background:{{tabGoBg}};color:{{tabGoColor}};">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M15 9l-2 6-6 2 2-6 6-2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+                <span style="font-size:10px;font-weight:600;">Go</span>
+              </button>
+              <button onClick="{{goTrack}}" style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 13px;border-radius:18px;border:none;cursor:pointer;background:{{tabTrackBg}};color:{{tabTrackColor}};">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M12 21s7-6.1 7-11.5A7 7 0 105 9.5C5 14.9 12 21 12 21z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.4" stroke="currentColor" stroke-width="1.6"/></svg>
+                <span style="font-size:10px;font-weight:600;">Track</span>
+              </button>
+              <button onClick="{{goPack}}" style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 13px;border-radius:18px;border:none;cursor:pointer;background:{{tabPackBg}};color:{{tabPackColor}};">
+                <svg width="21" height="21" viewBox="0 0 24 24" fill="none"><path d="M8 8V6a4 4 0 018 0v2" stroke="currentColor" stroke-width="1.6"/><rect x="5" y="8" width="14" height="12" rx="3" stroke="currentColor" stroke-width="1.6"/><path d="M10 12h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                <span style="font-size:10px;font-weight:600;">Pack</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </sc-if>
+
+    </div>
+  </x-import>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    screen: 'onboarding',
+    onboardStep: 0,
+    currentTripId: 1,
+    collapsed: { weather: false, routine: false, documents: false, other: false },
+    searchQuery: '',
+    swipeX: {},
+    checklist: [
+      { id: 1, label: 'Pack umbrella', category: 'weather', isChecked: false, isToday: true },
+      { id: 2, label: 'Waterproof jacket', category: 'weather', isChecked: false, isToday: true },
+      { id: 3, label: 'Check flight status', category: 'weather', isChecked: true, isToday: false },
+    ],
+    dragId: null,
+  };
+  _dragStartX = null;
+  _draggingId = null;
+  TRIPS = [
+    { id: 1, name: 'Tokyo', dates: 'Aug 14 – 22', location: 'Tokyo, Japan', hasData: true, temp: 18, high: 21, low: 14, wind: 22, condLabel: 'Rain expected today' },
+    { id: 2, name: 'Lisbon', dates: 'Sep 3 – 10', location: 'Lisbon, Portugal', hasData: false, temp: 24, high: 27, low: 18, wind: 12, condLabel: 'Clear skies' },
+  ];
+  go(screen) { return () => this.setState({ screen }); }
+  advanceOnboard() { this.setState((s) => (s.onboardStep < 2 ? { onboardStep: s.onboardStep + 1 } : { screen: 'home' })); }
+  skipOnboard() { this.setState({ screen: 'home' }); }
+  selectTrip(id) { return () => this.setState({ currentTripId: id }); }
+  toggleCollapse(cat) { return () => this.setState((s) => ({ collapsed: { ...s.collapsed, [cat]: !s.collapsed[cat] } })); }
+  toggleChecklist(id) { return () => this.setState((s) => ({ checklist: s.checklist.map((it) => it.id === id ? { ...it, isChecked: !it.isChecked } : it) })); }
+  renderVals() {
+    const s = this.state;
+    const trip = this.TRIPS.find((t) => t.id === s.currentTripId) || this.TRIPS[0];
+    const checklistTotal = s.checklist.length;
+    const checklistDone = s.checklist.filter((it) => it.isChecked).length;
+    const checklistPct = checklistTotal ? Math.round((checklistDone / checklistTotal) * 100) : 0;
+    const catList = (cat) => s.checklist.filter((it) => it.category === cat);
+    const weatherItems = catList('weather');
+    const tripChips = this.TRIPS.map((t) => ({
+      ...t,
+      select: this.selectTrip(t.id),
+      chipBg: t.id === s.currentTripId ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.18)',
+      chipColor: t.id === s.currentTripId ? '#1c1c1e' : '#fff',
+    }));
+    const activeColor = '#fff';
+    const inactiveColor = 'rgba(255,255,255,0.55)';
+    return {
+      isOnboarding: s.screen === 'onboarding',
+      isApp: s.screen !== 'onboarding',
+      isHome: s.screen === 'home',
+      isPlan: s.screen === 'plan',
+      isGo: s.screen === 'go',
+      isTrack: s.screen === 'track',
+      isPack: s.screen === 'pack',
+      isStep0: s.onboardStep === 0,
+      isStep1: s.onboardStep === 1,
+      isStep2: s.onboardStep === 2,
+      dot0Bg: s.onboardStep === 0 ? '#FF6B4A' : 'rgba(255,255,255,0.35)',
+      dot1Bg: s.onboardStep === 1 ? '#FF6B4A' : 'rgba(255,255,255,0.35)',
+      dot2Bg: s.onboardStep === 2 ? '#FF6B4A' : 'rgba(255,255,255,0.35)',
+      advanceOnboard: () => this.advanceOnboard(),
+      skipOnboard: () => this.skipOnboard(),
+      tripChips,
+      currentTripName: trip.name,
+      currentTripLocation: trip.location,
+      hasTripData: trip.hasData,
+      weatherTemp: trip.temp,
+      weatherHigh: trip.high,
+      weatherLow: trip.low,
+      weatherWind: trip.wind,
+      weatherLabel: trip.condLabel,
+      checklistDone, checklistTotal, checklistPct,
+      packDone: 5, packTotal: 8, packPct: 63,
+      weatherItems,
+      weatherCollapsed: s.collapsed.weather,
+      weatherChevronDeg: s.collapsed.weather ? -90 : 0,
+      toggleWeather: this.toggleCollapse('weather'),
+      weatherCount: `${weatherItems.filter(i=>i.isChecked).length}/${weatherItems.length}`,
+      selectedDest: { label: 'Tsukiji Market', distanceKm: 5.1 },
+      latestAlertLabel: 'Entered Shinjuku Ward',
+      latestAlertTime: '9:41 AM',
+      goHome: this.go('home'),
+      goPlan: this.go('plan'),
+      goGo: this.go('go'),
+      goTrack: this.go('track'),
+      goPack: this.go('pack'),
+      tabHomeColor: s.screen === 'home' ? activeColor : inactiveColor,
+      tabPlanColor: s.screen === 'plan' ? activeColor : inactiveColor,
+      tabGoColor: s.screen === 'go' ? activeColor : inactiveColor,
+      tabTrackColor: s.screen === 'track' ? activeColor : inactiveColor,
+      tabPackColor: s.screen === 'pack' ? activeColor : inactiveColor,
+      tabHomeBg: s.screen === 'home' ? 'rgba(255,107,74,0.35)' : 'transparent',
+      tabPlanBg: s.screen === 'plan' ? 'rgba(255,107,74,0.35)' : 'transparent',
+      tabGoBg: s.screen === 'go' ? 'rgba(255,107,74,0.35)' : 'transparent',
+      tabTrackBg: s.screen === 'track' ? 'rgba(255,107,74,0.35)' : 'transparent',
+      tabPackBg: s.screen === 'pack' ? 'rgba(255,107,74,0.35)' : 'transparent',
+    };
+  }
+}
+
+</script>
+</body>
+</html>

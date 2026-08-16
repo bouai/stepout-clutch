@@ -30,12 +30,31 @@ def _map_condition(
     return ChecklistWeatherCondition.CLEAR
 
 
+def _today_extreme(payload: dict, key: str) -> float | None:
+    """Today's high/low, or None when the daily block is absent or malformed.
+
+    Treated as optional throughout: the daily forecast is a nicety for the
+    Home weather card, and losing it must never fail the whole request.
+    """
+    daily = payload.get("daily")
+    if not isinstance(daily, dict):
+        return None
+    values = daily.get(key)
+    if not isinstance(values, list) or not values:
+        return None
+    value = values[0]
+    return value if isinstance(value, (int, float)) else None
+
+
 @router.get("", response_model=schemas.Weather)
 async def get_weather(lat: float = Query(...), lon: float = Query(...)):
     params = {
         "latitude": lat,
         "longitude": lon,
         "current_weather": "true",
+        "daily": "temperature_2m_max,temperature_2m_min",
+        "forecast_days": 1,
+        "timezone": "auto",
         "temperature_unit": "celsius",
         "windspeed_unit": "kmh",
     }
@@ -46,7 +65,8 @@ async def get_weather(lat: float = Query(...), lon: float = Query(...)):
     except httpx.HTTPError:
         raise HTTPException(status_code=502, detail="Failed to fetch weather data")
 
-    current = response.json().get("current_weather")
+    payload = response.json()
+    current = payload.get("current_weather")
     if current is None:
         raise HTTPException(status_code=502, detail="Failed to fetch weather data")
 
@@ -60,5 +80,7 @@ async def get_weather(lat: float = Query(...), lon: float = Query(...)):
         temperature_celsius=temperature_celsius,
         wind_speed_kmh=wind_speed_kmh,
         condition=condition,
+        high_celsius=_today_extreme(payload, "temperature_2m_max"),
+        low_celsius=_today_extreme(payload, "temperature_2m_min"),
         fetched_at=datetime.now(timezone.utc),
     )

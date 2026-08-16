@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import OnboardingDots from './OnboardingDots';
+import { colors } from '../../theme';
 
 interface Props {
   step: number;
@@ -51,7 +52,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   skipText: {
-    color: '#fff',
+    color: colors.textOnGradient,
     fontWeight: '600',
   },
   content: {
@@ -62,7 +63,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#fff',
+    color: colors.textOnGradient,
     textAlign: 'center',
     marginBottom: 12,
   },
@@ -72,7 +73,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   primaryButton: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.card,
     borderRadius: 999,
     paddingVertical: 16,
     alignItems: 'center',

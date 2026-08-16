@@ -2,6 +2,7 @@ import * as Location from 'expo-location';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import OnboardingDots from './OnboardingDots';
+import { colors } from '../../theme';
 
 interface Props {
   step: number;
@@ -66,7 +67,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
   },
   skipText: {
-    color: '#fff',
+    color: colors.textOnGradient,
     fontWeight: '600',
   },
   content: {
@@ -91,7 +92,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#fff',
+    color: colors.textOnGradient,
     textAlign: 'center',
     marginBottom: 12,
   },
@@ -108,7 +109,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryButtonText: {
-    color: '#fff',
+    color: colors.textOnGradient,
     fontWeight: '700',
     fontSize: 16,
   },
