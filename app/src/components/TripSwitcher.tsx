@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import {
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -10,48 +11,102 @@ import {
 } from 'react-native';
 
 import { useTripContext } from '../context/TripContext';
+import { cardShadow, colors, radius, spacing } from '../theme';
+
+type ModalMode = 'create' | 'rename';
 
 export default function TripSwitcher() {
-  const { trips, currentTripId, selectTrip, createTrip } = useTripContext();
+  const { trips, currentTripId, selectTrip, createTrip, renameTrip, deleteTrip } =
+    useTripContext();
 
-  const [modalVisible, setModalVisible] = useState(false);
+  const [mode, setMode] = useState<ModalMode | null>(null);
+  const [editingTripId, setEditingTripId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   function openCreateModal() {
-    setName('');
-    setError(null);
-    setModalVisible(true);
-  }
-
-  function closeCreateModal() {
-    setModalVisible(false);
+    setMode('create');
+    setEditingTripId(null);
     setName('');
     setError(null);
   }
 
-  async function submitCreateTrip() {
+  function openRenameModal(tripId: number, currentName: string) {
+    setMode('rename');
+    setEditingTripId(tripId);
+    setName(currentName);
+    setError(null);
+  }
+
+  function closeModal() {
+    setMode(null);
+    setEditingTripId(null);
+    setName('');
+    setError(null);
+  }
+
+  async function submit() {
     const trimmed = name.trim();
     if (trimmed.length === 0) return;
 
     setSubmitting(true);
     setError(null);
 
-    const created = await createTrip(trimmed);
-    if (created) {
-      closeCreateModal();
+    const ok =
+      mode === 'rename' && editingTripId !== null
+        ? await renameTrip(editingTripId, trimmed)
+        : (await createTrip(trimmed)) !== null;
+
+    if (ok) {
+      closeModal();
     } else {
-      setError('Could not create trip');
+      setError(mode === 'rename' ? 'Could not rename trip' : 'Could not create trip');
     }
     setSubmitting(false);
+  }
+
+  // Long-press is the only affordance on a chip that small; a visible menu
+  // would crowd the switcher, which the mockups keep to a single row.
+  function openChipActions(tripId: number, tripName: string) {
+    Alert.alert(tripName, undefined, [
+      { text: 'Rename', onPress: () => openRenameModal(tripId, tripName) },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => confirmDelete(tripId, tripName),
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
+  function confirmDelete(tripId: number, tripName: string) {
+    Alert.alert(
+      'Delete trip?',
+      `Delete "${tripName}"? Its items are kept and moved to All.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const ok = await deleteTrip(tripId);
+            if (!ok) Alert.alert('Could not delete trip');
+          },
+        },
+      ]
+    );
   }
 
   const canSubmit = name.trim().length > 0 && !submitting;
 
   return (
     <View style={styles.container}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.row}
+      >
         <Pressable
           style={[styles.chip, currentTripId === null && styles.chipSelected]}
           onPress={() => selectTrip(null)}
@@ -69,6 +124,7 @@ export default function TripSwitcher() {
             key={trip.id}
             style={[styles.chip, currentTripId === trip.id && styles.chipSelected]}
             onPress={() => selectTrip(trip.id)}
+            onLongPress={() => openChipActions(trip.id, trip.name)}
             testID={`trip-chip-${trip.id}`}
           >
             <Text
@@ -90,16 +146,20 @@ export default function TripSwitcher() {
         </Pressable>
       </ScrollView>
 
-      <Modal visible={modalVisible} transparent animationType="fade">
+      <Modal visible={mode !== null} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.sectionTitle}>New Trip</Text>
+            <Text style={styles.sectionTitle}>
+              {mode === 'rename' ? 'Rename Trip' : 'New Trip'}
+            </Text>
 
             <TextInput
               style={styles.modalInput}
               placeholder="Trip name"
+              placeholderTextColor={colors.textSecondary}
               value={name}
               onChangeText={setName}
+              autoFocus
               testID="trip-name-input"
             />
 
@@ -110,11 +170,11 @@ export default function TripSwitcher() {
             )}
 
             <View style={styles.modalActions}>
-              <Pressable onPress={closeCreateModal} testID="trip-modal-cancel-button">
+              <Pressable onPress={closeModal} testID="trip-modal-cancel-button">
                 <Text style={styles.modalActionText}>Cancel</Text>
               </Pressable>
               <Pressable
-                onPress={submitCreateTrip}
+                onPress={submit}
                 disabled={!canSubmit}
                 testID="trip-modal-create-button"
               >
@@ -124,7 +184,7 @@ export default function TripSwitcher() {
                     !canSubmit && styles.modalActionDisabled,
                   ]}
                 >
-                  Create
+                  {mode === 'rename' ? 'Save' : 'Create'}
                 </Text>
               </Pressable>
             </View>
@@ -137,77 +197,87 @@ export default function TripSwitcher() {
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 16,
+    marginBottom: spacing.md,
+  },
+  row: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingRight: spacing.sm,
   },
   chip: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#999',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginRight: 8,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
   },
   chipSelected: {
-    borderColor: '#0a7d34',
-    backgroundColor: 'rgba(10,125,52,0.1)',
+    backgroundColor: colors.card,
+    borderColor: colors.card,
   },
   chipText: {
-    color: '#333',
-  },
-  chipTextSelected: {
-    color: '#0a7d34',
+    color: colors.textOnGradient,
     fontWeight: '600',
   },
+  chipTextSelected: {
+    color: colors.textPrimary,
+    fontWeight: '700',
+  },
   addChip: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#999',
-    borderRadius: 16,
-    width: 32,
-    height: 32,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: radius.pill,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addChipText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: colors.textOnGradient,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
-    padding: 24,
+    padding: spacing.lg,
   },
   modalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 16,
-    gap: 12,
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    gap: spacing.sm,
+    ...cardShadow,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.textPrimary,
   },
   modalInput: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#999',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: colors.textSecondary,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    color: colors.textPrimary,
   },
   errorText: {
     fontSize: 12,
-    color: '#c0392b',
+    color: colors.danger,
   },
   modalActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 24,
+    gap: spacing.lg,
+    marginTop: spacing.xs,
   },
   modalActionText: {
-    fontWeight: '600',
-    color: '#0a7d34',
+    fontWeight: '700',
+    color: colors.accent,
   },
   modalActionDisabled: {
-    color: '#aaa',
+    color: colors.textSecondary,
   },
 });

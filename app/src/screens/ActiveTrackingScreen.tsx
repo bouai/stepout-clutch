@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from 'react';
@@ -7,6 +6,7 @@ import {
   Alert,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import MapView, { Circle, LatLng, Marker } from 'react-native-maps';
 
+import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
 import { useTripContext } from '../context/TripContext';
 import type { GeofenceTrigger, GeofenceTriggerType } from '../types/models';
@@ -316,10 +317,7 @@ export default function ActiveTrackingScreen() {
   };
 
   return (
-    <LinearGradient
-      colors={[colors.gradientStart, colors.gradientEnd]}
-      style={styles.container}
-    >
+    <ScreenContainer scrollable={false} testID="tracking-fixed">
       <View style={styles.tripSwitcherWrapper}>
         <TripSwitcher />
       </View>
@@ -358,10 +356,10 @@ export default function ActiveTrackingScreen() {
               center={{ latitude: trigger.latitude, longitude: trigger.longitude }}
               radius={trigger.radiusMeters}
               fillColor={
-                trigger.isActive ? 'rgba(10,125,52,0.2)' : 'rgba(136,136,136,0.15)'
+                trigger.isActive ? 'rgba(255,122,99,0.22)' : 'rgba(136,136,136,0.15)'
               }
               strokeColor={
-                trigger.isActive ? 'rgba(10,125,52,0.8)' : 'rgba(136,136,136,0.6)'
+                trigger.isActive ? 'rgba(255,122,99,0.85)' : 'rgba(136,136,136,0.6)'
               }
               strokeWidth={2}
             />
@@ -404,7 +402,12 @@ export default function ActiveTrackingScreen() {
       )}
 
       <View style={[styles.card, styles.listCard]}>
-        <View style={styles.listSection}>
+        <ScrollView
+          style={styles.listSection}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          testID="triggers-scroll"
+        >
         {listStatus === 'loading' && <ActivityIndicator />}
         {listStatus === 'error' && (
           <Text testID="triggers-error">Could not load triggers</Text>
@@ -449,7 +452,7 @@ export default function ActiveTrackingScreen() {
               )}
             </View>
           ))}
-        </View>
+        </ScrollView>
       </View>
 
       <Modal visible={pendingLocation !== null} transparent animationType="fade">
@@ -540,17 +543,11 @@ export default function ActiveTrackingScreen() {
           </View>
         </View>
       </Modal>
-    </LinearGradient>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 60,
-    paddingHorizontal: 16,
-    paddingBottom: 120,
-  },
   tripSwitcherWrapper: {
     marginBottom: spacing.sm,
   },
@@ -585,10 +582,13 @@ const styles = StyleSheet.create({
   listSection: {
     flex: 1,
   },
+  listContent: {
+    paddingBottom: spacing.sm,
+  },
   triggerRow: {
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ccc',
+    borderBottomColor: colors.cardBorder,
   },
   triggerRowMain: {
     flexDirection: 'row',
@@ -602,10 +602,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   triggerInactive: {
-    color: '#999',
+    color: colors.textSecondary,
   },
   deleteButton: {
-    color: '#c0392b',
+    color: colors.danger,
     fontWeight: '600',
   },
   modalOverlay: {
@@ -626,11 +626,11 @@ const styles = StyleSheet.create({
   },
   modalCoords: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
   },
   modalInput: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#999',
+    borderColor: colors.textSecondary,
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
@@ -641,17 +641,17 @@ const styles = StyleSheet.create({
   typeOption: {
     flex: 1,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#999',
+    borderColor: colors.textSecondary,
     paddingVertical: 8,
     alignItems: 'center',
   },
   typeOptionSelected: {
-    borderColor: '#0a7d34',
-    backgroundColor: 'rgba(10,125,52,0.1)',
+    borderColor: colors.accent,
+    backgroundColor: 'rgba(255,122,99,0.12)',
   },
   rowError: {
     fontSize: 12,
-    color: '#c0392b',
+    color: colors.danger,
   },
   modalActions: {
     flexDirection: 'row',
@@ -660,9 +660,9 @@ const styles = StyleSheet.create({
   },
   modalActionText: {
     fontWeight: '600',
-    color: '#0a7d34',
+    color: colors.accent,
   },
   modalActionDisabled: {
-    color: '#aaa',
+    color: colors.textSecondary,
   },
 });

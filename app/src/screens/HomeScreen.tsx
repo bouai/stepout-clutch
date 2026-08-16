@@ -1,9 +1,9 @@
 import { useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
 import { useTripContext } from '../context/TripContext';
 import type {
@@ -15,7 +15,8 @@ import type {
   SavedDestination,
   Weather,
 } from '../types/models';
-import { cardShadow, colors, radius, spacing, typography } from '../theme';
+import { cardShadow, colors, radius, spacing } from '../theme';
+import { formatRelativeTime } from '../utils/time';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 const DEFAULT_LATITUDE = 28.6139;
@@ -65,21 +66,6 @@ async function resolveCoordinates(): Promise<{
   }
 }
 
-function formatRelativeTime(isoTimestamp: string): string {
-  const seconds = Math.max(
-    0,
-    Math.floor((Date.now() - new Date(isoTimestamp).getTime()) / 1000)
-  );
-
-  if (seconds < 60) return 'just now';
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
 function ProgressRing({
   label,
   completed,
@@ -126,149 +112,87 @@ export default function HomeScreen() {
   const [latestAlert, setLatestAlert] = useState<LatestAlert | null>(null);
   const [alertStatus, setAlertStatus] = useState<AlertStatus>('loading');
 
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
+  const [refreshing, setRefreshing] = useState(false);
+
+  const tripQuery = currentTripId !== null ? `?tripId=${currentTripId}` : '';
+
+  /**
+   * One pass over every card on the dashboard.
+   *
+   * These used to be five independent effects, two of which each called
+   * `resolveCoordinates()` — so opening Home asked for location permission
+   * twice and took two GPS fixes. Device position is now resolved once and
+   * shared by the weather and "up next" cards.
+   */
+  const loadDashboard = useCallback(
+    async (isCancelled: () => boolean) => {
+      setWeatherStatus('loading');
+      setChecklistStatus('loading');
+      setInventoryStatus('loading');
+      setNearestStatus('loading');
+      setAlertStatus('loading');
+
+      const device = await resolveCoordinates();
+      if (isCancelled()) return;
+
+      // A trip with its own coordinates describes the destination's weather;
+      // otherwise fall back to wherever the device actually is.
+      const hasTripCoords =
+        currentTrip?.latitude != null && currentTrip?.longitude != null;
+      const weatherLat = hasTripCoords ? currentTrip!.latitude! : device.latitude;
+      const weatherLon = hasTripCoords ? currentTrip!.longitude! : device.longitude;
+      setUsedDefaultLocation(hasTripCoords ? false : device.usedDefault);
 
       async function loadWeather() {
-        setWeatherStatus('loading');
-
-        let latitude: number;
-        let longitude: number;
-        let usedDefault: boolean;
-
-        if (currentTrip?.latitude != null && currentTrip?.longitude != null) {
-          latitude = currentTrip.latitude;
-          longitude = currentTrip.longitude;
-          usedDefault = false;
-        } else {
-          const resolved = await resolveCoordinates();
-          latitude = resolved.latitude;
-          longitude = resolved.longitude;
-          usedDefault = resolved.usedDefault;
-        }
-
-        if (cancelled) return;
-        setUsedDefaultLocation(usedDefault);
-
         try {
           const response = await fetch(
-            `${API_URL}/weather?lat=${latitude}&lon=${longitude}`
+            `${API_URL}/weather?lat=${weatherLat}&lon=${weatherLon}`
           );
           if (!response.ok) throw new Error('weather request failed');
           const data: Weather = await response.json();
-          if (!cancelled) {
+          if (!isCancelled()) {
             setWeather(data);
             setWeatherStatus('ready');
           }
         } catch {
-          if (!cancelled) {
-            setWeatherStatus('unavailable');
-          }
+          if (!isCancelled()) setWeatherStatus('unavailable');
         }
       }
-
-      loadWeather();
-
-      return () => {
-        cancelled = true;
-      };
-    }, [currentTrip?.latitude, currentTrip?.longitude])
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
 
       async function loadChecklist() {
-        setChecklistStatus('loading');
         try {
-          const url =
-            currentTripId !== null
-              ? `${API_URL}/checklist-items?tripId=${currentTripId}`
-              : `${API_URL}/checklist-items`;
-          const response = await fetch(url);
+          const response = await fetch(`${API_URL}/checklist-items${tripQuery}`);
           if (!response.ok) throw new Error('checklist request failed');
           const data: ChecklistItem[] = await response.json();
-          if (!cancelled) {
-            setChecklistItems(data);
-          }
+          if (!isCancelled()) setChecklistItems(data);
         } catch {
-          if (!cancelled) {
-            setChecklistItems([]);
-          }
+          if (!isCancelled()) setChecklistItems([]);
         } finally {
-          if (!cancelled) {
-            setChecklistStatus('ready');
-          }
+          if (!isCancelled()) setChecklistStatus('ready');
         }
       }
-
-      loadChecklist();
-
-      return () => {
-        cancelled = true;
-      };
-    }, [currentTripId])
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
 
       async function loadInventory() {
-        setInventoryStatus('loading');
         try {
-          const url =
-            currentTripId !== null
-              ? `${API_URL}/inventory-items?tripId=${currentTripId}`
-              : `${API_URL}/inventory-items`;
-          const response = await fetch(url);
+          const response = await fetch(`${API_URL}/inventory-items${tripQuery}`);
           if (!response.ok) throw new Error('inventory request failed');
           const data: InventoryItem[] = await response.json();
-          if (!cancelled) {
-            setInventoryItems(data);
-          }
+          if (!isCancelled()) setInventoryItems(data);
         } catch {
-          if (!cancelled) {
-            setInventoryItems([]);
-          }
+          if (!isCancelled()) setInventoryItems([]);
         } finally {
-          if (!cancelled) {
-            setInventoryStatus('ready');
-          }
+          if (!isCancelled()) setInventoryStatus('ready');
         }
       }
 
-      loadInventory();
-
-      return () => {
-        cancelled = true;
-      };
-    }, [currentTripId])
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-
       async function loadNearest() {
-        setNearestStatus('loading');
-
-        const { latitude, longitude } = await resolveCoordinates();
-        if (cancelled) return;
-
         try {
-          const url =
-            currentTripId !== null
-              ? `${API_URL}/saved-destinations?tripId=${currentTripId}`
-              : `${API_URL}/saved-destinations`;
-          const response = await fetch(url);
+          const response = await fetch(`${API_URL}/saved-destinations${tripQuery}`);
           if (!response.ok) throw new Error('saved-destinations request failed');
           const destinations: SavedDestination[] = await response.json();
 
           if (destinations.length === 0) {
-            if (!cancelled) {
+            if (!isCancelled()) {
               setNearest(null);
               setNearestStatus('empty');
             }
@@ -278,7 +202,7 @@ export default function HomeScreen() {
           const withDistances = await Promise.all(
             destinations.map(async (destination) => {
               const distanceResponse = await fetch(
-                `${API_URL}/saved-destinations/${destination.id}/distance?lat=${latitude}&lon=${longitude}`
+                `${API_URL}/saved-destinations/${destination.id}/distance?lat=${device.latitude}&lon=${device.longitude}`
               );
               if (!distanceResponse.ok) {
                 throw new Error('distance request failed');
@@ -290,40 +214,32 @@ export default function HomeScreen() {
 
           withDistances.sort((a, b) => a.distance.distanceKm - b.distance.distanceKm);
 
-          if (!cancelled) {
+          if (!isCancelled()) {
             setNearest(withDistances[0]);
             setNearestStatus('ready');
           }
         } catch {
-          if (!cancelled) {
+          if (!isCancelled()) {
             setNearest(null);
             setNearestStatus('error');
           }
         }
       }
 
-      loadNearest();
-
-      return () => {
-        cancelled = true;
-      };
-    }, [currentTripId])
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-
       async function loadLatestAlert() {
-        setAlertStatus('loading');
-
         try {
-          const response = await fetch(`${API_URL}/geofence-events?limit=1`);
+          // Scoped like every other card — an unscoped fetch surfaced another
+          // trip's alert while the rest of the dashboard showed this trip.
+          const response = await fetch(
+            `${API_URL}/geofence-events?limit=1${
+              currentTripId !== null ? `&tripId=${currentTripId}` : ''
+            }`
+          );
           if (!response.ok) throw new Error('geofence-events request failed');
           const events: GeofenceEvent[] = await response.json();
 
           if (events.length === 0) {
-            if (!cancelled) {
+            if (!isCancelled()) {
               setLatestAlert(null);
               setAlertStatus('empty');
             }
@@ -344,36 +260,55 @@ export default function HomeScreen() {
             // Keep the fallback label if the trigger lookup fails.
           }
 
-          if (!cancelled) {
+          if (!isCancelled()) {
             setLatestAlert({ event, triggerLabel });
             setAlertStatus('ready');
           }
         } catch {
-          if (!cancelled) {
+          if (!isCancelled()) {
             setLatestAlert(null);
             setAlertStatus('error');
           }
         }
       }
 
-      loadLatestAlert();
+      await Promise.all([
+        loadWeather(),
+        loadChecklist(),
+        loadInventory(),
+        loadNearest(),
+        loadLatestAlert(),
+      ]);
+    },
+    [currentTripId, currentTrip?.latitude, currentTrip?.longitude, tripQuery]
+  );
 
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      loadDashboard(() => cancelled);
       return () => {
         cancelled = true;
       };
-    }, [])
+    }, [loadDashboard])
   );
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadDashboard(() => false);
+    setRefreshing(false);
+  }
 
   const checkedCount = checklistItems.filter((item) => item.isChecked).length;
   const packedCount = inventoryItems.filter((item) => item.isPacked).length;
 
   return (
-    <LinearGradient
-      colors={[colors.gradientStart, colors.gradientEnd]}
-      style={styles.container}
+    <ScreenContainer
+      title="Home"
+      onRefresh={handleRefresh}
+      refreshing={refreshing}
+      testID="home-scroll"
     >
-      <Text style={styles.title}>Home</Text>
-
       <TripSwitcher />
 
       <View style={styles.card}>
@@ -446,21 +381,11 @@ export default function HomeScreen() {
           </Text>
         )}
       </View>
-    </LinearGradient>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 60,
-    paddingHorizontal: 16,
-    paddingBottom: 120,
-  },
-  title: {
-    ...typography.heading,
-    marginBottom: spacing.md,
-  },
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.card,
@@ -470,7 +395,7 @@ const styles = StyleSheet.create({
   },
   note: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
     marginTop: 4,
   },
   sectionTitle: {

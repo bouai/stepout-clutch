@@ -1,6 +1,5 @@
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -14,6 +13,7 @@ import {
   View,
 } from 'react-native';
 
+import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
 import { useTripContext } from '../context/TripContext';
 import type {
@@ -22,7 +22,7 @@ import type {
   InventoryItem,
   Weather,
 } from '../types/models';
-import { cardShadow, colors, radius, spacing, typography } from '../theme';
+import { cardShadow, colors, radius, spacing } from '../theme';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 const DEFAULT_LATITUDE = 28.6139;
@@ -87,6 +87,7 @@ export default function PlannerScreen() {
   const [usedDefaultLocation, setUsedDefaultLocation] = useState(false);
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
   const [checklistLoading, setChecklistLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
 
@@ -135,70 +136,65 @@ export default function PlannerScreen() {
     };
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
+  const loadLists = useCallback(
+    async (isCancelled: () => boolean) => {
+      const tripQuery = currentTripId !== null ? `?tripId=${currentTripId}` : '';
 
       async function loadChecklist() {
         try {
-          const url =
-            currentTripId !== null
-              ? `${API_URL}/checklist-items?tripId=${currentTripId}`
-              : `${API_URL}/checklist-items`;
-          const response = await fetch(url);
+          const response = await fetch(`${API_URL}/checklist-items${tripQuery}`);
           if (!response.ok) throw new Error('checklist request failed');
           const data: ChecklistItem[] = await response.json();
-          if (!cancelled) {
+          if (!isCancelled()) {
             setChecklistItems(data);
           }
         } catch {
-          if (!cancelled) {
+          if (!isCancelled()) {
             setChecklistItems([]);
           }
         } finally {
-          if (!cancelled) {
+          if (!isCancelled()) {
             setChecklistLoading(false);
           }
         }
       }
 
-      loadChecklist();
-
-      return () => {
-        cancelled = true;
-      };
-    }, [currentTripId])
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-
       async function loadInventory() {
         try {
-          const url =
-            currentTripId !== null
-              ? `${API_URL}/inventory-items?tripId=${currentTripId}`
-              : `${API_URL}/inventory-items`;
-          const response = await fetch(url);
+          const response = await fetch(`${API_URL}/inventory-items${tripQuery}`);
           if (!response.ok) throw new Error('inventory request failed');
           const data: InventoryItem[] = await response.json();
-          if (!cancelled) {
+          if (!isCancelled()) {
             setInventoryItems(data);
           }
         } catch {
-          if (!cancelled) {
+          if (!isCancelled()) {
             setInventoryItems([]);
           }
         }
       }
 
-      loadInventory();
+      await Promise.all([loadChecklist(), loadInventory()]);
+    },
+    [currentTripId]
+  );
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadLists(() => false);
+    setRefreshing(false);
+  }
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+
+      loadLists(() => cancelled);
 
       return () => {
         cancelled = true;
       };
-    }, [currentTripId])
+    }, [loadLists])
   );
 
   function clearRowError(itemId: number) {
@@ -359,12 +355,12 @@ export default function PlannerScreen() {
   const canSubmitModal = modalLabel.trim().length > 0 && modalCategory !== null;
 
   return (
-    <LinearGradient
-      colors={[colors.gradientStart, colors.gradientEnd]}
-      style={styles.container}
+    <ScreenContainer
+      title="Planner"
+      onRefresh={handleRefresh}
+      refreshing={refreshing}
+      testID="planner-scroll"
     >
-      <Text style={styles.title}>Planner</Text>
-
       <TripSwitcher />
 
       <View style={styles.card}>
@@ -543,21 +539,11 @@ export default function PlannerScreen() {
           </View>
         </View>
       </Modal>
-    </LinearGradient>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 60,
-    paddingHorizontal: 16,
-    paddingBottom: 120,
-  },
-  title: {
-    ...typography.heading,
-    marginBottom: spacing.md,
-  },
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.card,
@@ -565,13 +551,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     ...cardShadow,
   },
-  checklistCard: {
-    flex: 1,
-  },
+  checklistCard: {},
   weatherSection: {},
   note: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
     marginTop: 4,
   },
   checklistHeader: {
@@ -585,7 +569,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   addButton: {
-    color: '#0a7d34',
+    color: colors.accent,
     fontWeight: '600',
   },
   checklistSection: {
@@ -594,7 +578,7 @@ const styles = StyleSheet.create({
   checklistRow: {
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ccc',
+    borderBottomColor: colors.cardBorder,
   },
   checklistRowMain: {
     flexDirection: 'row',
@@ -610,7 +594,7 @@ const styles = StyleSheet.create({
   labelInput: {
     flex: 1,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#999',
+    borderColor: colors.textSecondary,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
@@ -621,19 +605,19 @@ const styles = StyleSheet.create({
   todayTag: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#0a7d34',
+    color: colors.accent,
   },
   inventoryBadge: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
   },
   deleteButton: {
-    color: '#c0392b',
+    color: colors.danger,
     fontWeight: '600',
   },
   rowError: {
     fontSize: 12,
-    color: '#c0392b',
+    color: colors.danger,
     marginTop: 4,
   },
   modalOverlay: {
@@ -650,13 +634,13 @@ const styles = StyleSheet.create({
   },
   modalInput: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#999',
+    borderColor: colors.textSecondary,
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
   pickerLabel: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
   },
   modalActions: {
     flexDirection: 'row',
@@ -665,9 +649,9 @@ const styles = StyleSheet.create({
   },
   modalActionText: {
     fontWeight: '600',
-    color: '#0a7d34',
+    color: colors.accent,
   },
   modalActionDisabled: {
-    color: '#aaa',
+    color: colors.textSecondary,
   },
 });

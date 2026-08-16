@@ -1,6 +1,5 @@
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,6 +12,7 @@ import {
   View,
 } from 'react-native';
 
+import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
 import { useTripContext } from '../context/TripContext';
 import type { InventoryCategory, InventoryItem } from '../types/models';
@@ -45,6 +45,7 @@ export default function InventoryScreen() {
 
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
 
   const [modalVisible, setModalVisible] = useState(false);
@@ -53,39 +54,48 @@ export default function InventoryScreen() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSubmitting, setModalSubmitting] = useState(false);
 
+  const loadItems = useCallback(
+    async (isCancelled: () => boolean) => {
+      try {
+        const url =
+          currentTripId !== null
+            ? `${API_URL}/inventory-items?tripId=${currentTripId}`
+            : `${API_URL}/inventory-items`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('inventory request failed');
+        const data: InventoryItem[] = await response.json();
+        if (!isCancelled()) {
+          setItems(data);
+        }
+      } catch {
+        if (!isCancelled()) {
+          setItems([]);
+        }
+      } finally {
+        if (!isCancelled()) {
+          setLoading(false);
+        }
+      }
+    },
+    [currentTripId]
+  );
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await loadItems(() => false);
+    setRefreshing(false);
+  }
+
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
 
-      async function loadItems() {
-        try {
-          const url =
-            currentTripId !== null
-              ? `${API_URL}/inventory-items?tripId=${currentTripId}`
-              : `${API_URL}/inventory-items`;
-          const response = await fetch(url);
-          if (!response.ok) throw new Error('inventory request failed');
-          const data: InventoryItem[] = await response.json();
-          if (!cancelled) {
-            setItems(data);
-          }
-        } catch {
-          if (!cancelled) {
-            setItems([]);
-          }
-        } finally {
-          if (!cancelled) {
-            setLoading(false);
-          }
-        }
-      }
-
-      loadItems();
+      loadItems(() => cancelled);
 
       return () => {
         cancelled = true;
       };
-    }, [currentTripId])
+    }, [loadItems])
   );
 
   function clearRowError(itemId: number) {
@@ -199,9 +209,10 @@ export default function InventoryScreen() {
   const canSubmitModal = modalName.trim().length > 0 && modalCategory !== null;
 
   return (
-    <LinearGradient
-      colors={[colors.gradientStart, colors.gradientEnd]}
-      style={styles.container}
+    <ScreenContainer
+      onRefresh={handleRefresh}
+      refreshing={refreshing}
+      testID="inventory-scroll"
     >
       <View style={styles.header}>
         <Text style={styles.title}>Inventory</Text>
@@ -301,17 +312,11 @@ export default function InventoryScreen() {
           </View>
         </View>
       </Modal>
-    </LinearGradient>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 60,
-    paddingHorizontal: 16,
-    paddingBottom: 120,
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -328,21 +333,19 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     ...cardShadow,
   },
-  listCard: {
-    flex: 1,
-  },
+  listCard: {},
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
   },
   addButton: {
-    color: '#0a7d34',
+    color: colors.accent,
     fontWeight: '600',
   },
   row: {
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ccc',
+    borderBottomColor: colors.cardBorder,
   },
   rowMain: {
     flexDirection: 'row',
@@ -361,12 +364,12 @@ const styles = StyleSheet.create({
     color: '#888',
   },
   deleteButton: {
-    color: '#c0392b',
+    color: colors.danger,
     fontWeight: '600',
   },
   rowError: {
     fontSize: 12,
-    color: '#c0392b',
+    color: colors.danger,
     marginTop: 4,
   },
   modalOverlay: {
@@ -383,7 +386,7 @@ const styles = StyleSheet.create({
   },
   modalInput: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#999',
+    borderColor: colors.textSecondary,
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
@@ -394,9 +397,9 @@ const styles = StyleSheet.create({
   },
   modalActionText: {
     fontWeight: '600',
-    color: '#0a7d34',
+    color: colors.accent,
   },
   modalActionDisabled: {
-    color: '#aaa',
+    color: colors.textSecondary,
   },
 });

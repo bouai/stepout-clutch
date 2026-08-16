@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { useEffect, useState } from 'react';
 import {
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import MapView, { LatLng, Marker, Polyline } from 'react-native-maps';
 
+import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
 import { useTripContext } from '../context/TripContext';
 import type { Distance, SavedDestination } from '../types/models';
@@ -237,10 +237,7 @@ export default function TransitScreen() {
   const canSubmitCreate = createLabel.trim().length > 0 && !createSubmitting;
 
   return (
-    <LinearGradient
-      colors={[colors.gradientStart, colors.gradientEnd]}
-      style={styles.container}
-    >
+    <ScreenContainer scrollable={false} testID="transit-fixed">
       <View style={styles.tripSwitcherWrapper}>
         <TripSwitcher />
       </View>
@@ -413,17 +410,11 @@ export default function TransitScreen() {
           </View>
         </View>
       </Modal>
-    </LinearGradient>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingTop: 60,
-    paddingHorizontal: 16,
-    paddingBottom: 120,
-  },
   tripSwitcherWrapper: {
     marginBottom: spacing.sm,
   },
@@ -461,7 +452,7 @@ const styles = StyleSheet.create({
   destinationRow: {
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ccc',
+    borderBottomColor: colors.cardBorder,
   },
   destinationRowMain: {
     flexDirection: 'row',
@@ -475,12 +466,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   deleteButton: {
-    color: '#c0392b',
+    color: colors.danger,
     fontWeight: '600',
   },
   rowError: {
     fontSize: 12,
-    color: '#c0392b',
+    color: colors.danger,
     marginTop: 4,
   },
   distanceSection: {},
@@ -502,11 +493,11 @@ const styles = StyleSheet.create({
   },
   modalCoords: {
     fontSize: 12,
-    color: '#666',
+    color: colors.textSecondary,
   },
   modalInput: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#999',
+    borderColor: colors.textSecondary,
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
@@ -517,9 +508,9 @@ const styles = StyleSheet.create({
   },
   modalActionText: {
     fontWeight: '600',
-    color: '#0a7d34',
+    color: colors.accent,
   },
   modalActionDisabled: {
-    color: '#aaa',
+    color: colors.textSecondary,
   },
 });
