@@ -94,6 +94,17 @@ network):
 cd app && EXPO_PUBLIC_API_URL=http://192.168.1.9:8000 npx expo start --dev-client
 ```
 
+`EXPO_PUBLIC_*` variables are inlined **when the bundle is built**. For a dev
+client that is Metro, here, at `expo start` — so this is the command that
+decides which backend the app talks to, and changing it needs only a restart,
+not a rebuild. For a standalone build handed to a tester, it is inlined by EAS
+instead, so that build must be made with the deployed URL already set.
+
+If the app cannot reach the server, screens say so explicitly and offer a
+retry — a blank list means the account really is empty, never a network
+failure. When the base URL is localhost the error names that specifically,
+since a phone cannot reach the dev machine's loopback.
+
 Confirm the IP first — it changes between networks:
 
 ```bash
@@ -145,12 +156,25 @@ visibly change every card.
 - [ ] Map tiles render (a grey grid means the Maps key is rejected)
 - [ ] Current-location marker appears
 - [ ] Tap the map → trigger modal; the radius circle previews live
+- [ ] Status line reads "Tracking: active — Watching N zones in the background"
 - [ ] Walk out of a small trigger → notification fires
 - [ ] That alert then appears on Home with a fresh relative time
 
-### Known limitation
+**Background geofencing** — the reason the app exists; test this deliberately.
 
-Tracking is **foreground-only**. `watchPositionAsync` stops when the app is
-backgrounded, so geofences only fire while the app is open on the Track tab.
-Background geofencing needs `expo-task-manager` plus background location
-permission — a feature, not a fix.
+Android asks for background location **separately** from foreground, and the
+"Allow all the time" option is often only reachable from system settings
+rather than the in-app prompt. If the status line says background location is
+off, grant it under Settings → Apps → StepOut → Permissions → Location.
+
+- [ ] Create a small trigger (~150 m) at your current location, type `exit`
+- [ ] **Background the app entirely** (home button, or swipe it away)
+- [ ] Walk beyond the radius → notification still fires
+- [ ] Reopen the app → the alert is on Home with a plausible relative time
+- [ ] Toggle a trigger inactive → it stops firing
+- [ ] Delete every trigger → status line says there are no zones to watch
+
+OS geofencing is deliberately unhurried: Android batches transitions and can
+take a minute or two, and dwelling briefly inside or outside the radius is
+more reliable than crossing it quickly. That latency is the trade for it
+working at all when the app is closed.
