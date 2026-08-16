@@ -5,6 +5,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
+import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
 import type {
   ChecklistItem,
@@ -18,7 +19,6 @@ import type {
 import { cardShadow, colors, radius, spacing } from '../theme';
 import { formatRelativeTime } from '../utils/time';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
 
@@ -98,6 +98,7 @@ export default function HomeScreen() {
 
   const [weather, setWeather] = useState<Weather | null>(null);
   const [weatherStatus, setWeatherStatus] = useState<WeatherStatus>('loading');
+  const [weatherError, setWeatherError] = useState<string | null>(null);
   const [usedDefaultLocation, setUsedDefaultLocation] = useState(false);
 
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
@@ -145,25 +146,26 @@ export default function HomeScreen() {
 
       async function loadWeather() {
         try {
-          const response = await fetch(
-            `${API_URL}/weather?lat=${weatherLat}&lon=${weatherLon}`
-          );
-          if (!response.ok) throw new Error('weather request failed');
-          const data: Weather = await response.json();
+          const data = await apiRequest<Weather>('/weather', {
+            query: { lat: weatherLat, lon: weatherLon },
+          });
           if (!isCancelled()) {
             setWeather(data);
             setWeatherStatus('ready');
           }
-        } catch {
-          if (!isCancelled()) setWeatherStatus('unavailable');
+        } catch (error) {
+          if (!isCancelled()) {
+            setWeatherError(describeError(error));
+            setWeatherStatus('unavailable');
+          }
         }
       }
 
       async function loadChecklist() {
         try {
-          const response = await fetch(`${API_URL}/checklist-items${tripQuery}`);
-          if (!response.ok) throw new Error('checklist request failed');
-          const data: ChecklistItem[] = await response.json();
+          const data = await apiRequest<ChecklistItem[]>(
+            `/checklist-items${tripQuery}`
+          );
           if (!isCancelled()) setChecklistItems(data);
         } catch {
           if (!isCancelled()) setChecklistItems([]);
@@ -174,9 +176,9 @@ export default function HomeScreen() {
 
       async function loadInventory() {
         try {
-          const response = await fetch(`${API_URL}/inventory-items${tripQuery}`);
-          if (!response.ok) throw new Error('inventory request failed');
-          const data: InventoryItem[] = await response.json();
+          const data = await apiRequest<InventoryItem[]>(
+            `/inventory-items${tripQuery}`
+          );
           if (!isCancelled()) setInventoryItems(data);
         } catch {
           if (!isCancelled()) setInventoryItems([]);
@@ -187,9 +189,9 @@ export default function HomeScreen() {
 
       async function loadNearest() {
         try {
-          const response = await fetch(`${API_URL}/saved-destinations${tripQuery}`);
-          if (!response.ok) throw new Error('saved-destinations request failed');
-          const destinations: SavedDestination[] = await response.json();
+          const destinations = await apiRequest<SavedDestination[]>(
+            `/saved-destinations${tripQuery}`
+          );
 
           if (destinations.length === 0) {
             if (!isCancelled()) {
@@ -201,13 +203,12 @@ export default function HomeScreen() {
 
           const withDistances = await Promise.all(
             destinations.map(async (destination) => {
-              const distanceResponse = await fetch(
-                `${API_URL}/saved-destinations/${destination.id}/distance?lat=${device.latitude}&lon=${device.longitude}`
+              const distance = await apiRequest<Distance>(
+                `/saved-destinations/${destination.id}/distance`,
+                {
+                  query: { lat: device.latitude, lon: device.longitude },
+                }
               );
-              if (!distanceResponse.ok) {
-                throw new Error('distance request failed');
-              }
-              const distance: Distance = await distanceResponse.json();
               return { destination, distance };
             })
           );
@@ -230,13 +231,9 @@ export default function HomeScreen() {
         try {
           // Scoped like every other card — an unscoped fetch surfaced another
           // trip's alert while the rest of the dashboard showed this trip.
-          const response = await fetch(
-            `${API_URL}/geofence-events?limit=1${
-              currentTripId !== null ? `&tripId=${currentTripId}` : ''
-            }`
-          );
-          if (!response.ok) throw new Error('geofence-events request failed');
-          const events: GeofenceEvent[] = await response.json();
+          const events = await apiRequest<GeofenceEvent[]>('/geofence-events', {
+            query: { limit: 1, tripId: currentTripId },
+          });
 
           if (events.length === 0) {
             if (!isCancelled()) {
@@ -249,13 +246,10 @@ export default function HomeScreen() {
           const [event] = events;
           let triggerLabel = 'Unknown location';
           try {
-            const triggerResponse = await fetch(
-              `${API_URL}/geofence-triggers/${event.triggerId}`
+            const trigger = await apiRequest<GeofenceTrigger>(
+              `/geofence-triggers/${event.triggerId}`
             );
-            if (triggerResponse.ok) {
-              const trigger: GeofenceTrigger = await triggerResponse.json();
-              triggerLabel = trigger.label;
-            }
+            triggerLabel = trigger.label;
           } catch {
             // Keep the fallback label if the trigger lookup fails.
           }
@@ -324,7 +318,9 @@ export default function HomeScreen() {
           </>
         )}
         {weatherStatus === 'unavailable' && (
-          <Text testID="home-weather-unavailable">Weather unavailable</Text>
+          <Text testID="home-weather-unavailable">
+            {weatherError ?? 'Weather unavailable'}
+          </Text>
         )}
       </View>
 

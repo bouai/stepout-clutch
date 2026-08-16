@@ -13,8 +13,10 @@ import {
   View,
 } from 'react-native';
 
+import ListState, { type LoadStatus } from '../components/ListState';
 import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
+import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
 import type {
   ChecklistCategory,
@@ -24,7 +26,6 @@ import type {
 } from '../types/models';
 import { cardShadow, colors, radius, spacing } from '../theme';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
 
@@ -70,13 +71,10 @@ async function patchChecklistItem(
   id: number,
   patch: Record<string, unknown>
 ): Promise<ChecklistItem> {
-  const response = await fetch(`${API_URL}/checklist-items/${id}`, {
+  return apiRequest<ChecklistItem>(`/checklist-items/${id}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
+    body: patch,
   });
-  if (!response.ok) throw new Error('patch request failed');
-  return response.json();
 }
 
 export default function PlannerScreen() {
@@ -86,7 +84,8 @@ export default function PlannerScreen() {
   const [weatherStatus, setWeatherStatus] = useState<WeatherStatus>('loading');
   const [usedDefaultLocation, setUsedDefaultLocation] = useState(false);
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
-  const [checklistLoading, setChecklistLoading] = useState(true);
+  const [checklistStatus, setChecklistStatus] = useState<LoadStatus>('loading');
+  const [checklistError, setChecklistError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
@@ -113,11 +112,9 @@ export default function PlannerScreen() {
       setUsedDefaultLocation(usedDefault);
 
       try {
-        const response = await fetch(
-          `${API_URL}/weather?lat=${latitude}&lon=${longitude}`
-        );
-        if (!response.ok) throw new Error('weather request failed');
-        const data: Weather = await response.json();
+        const data = await apiRequest<Weather>('/weather', {
+          query: { lat: latitude, lon: longitude },
+        });
         if (!cancelled) {
           setWeather(data);
           setWeatherStatus('ready');
@@ -142,28 +139,29 @@ export default function PlannerScreen() {
 
       async function loadChecklist() {
         try {
-          const response = await fetch(`${API_URL}/checklist-items${tripQuery}`);
-          if (!response.ok) throw new Error('checklist request failed');
-          const data: ChecklistItem[] = await response.json();
+          const data = await apiRequest<ChecklistItem[]>(
+            `/checklist-items${tripQuery}`
+          );
           if (!isCancelled()) {
             setChecklistItems(data);
+            setChecklistError(null);
+            setChecklistStatus(data.length === 0 ? 'empty' : 'ready');
           }
-        } catch {
+        } catch (error) {
+          // Preserve what is on screen and name the failure, rather than
+          // blanking to something that reads as 'you have no items'.
           if (!isCancelled()) {
-            setChecklistItems([]);
-          }
-        } finally {
-          if (!isCancelled()) {
-            setChecklistLoading(false);
+            setChecklistError(describeError(error));
+            setChecklistStatus('error');
           }
         }
       }
 
       async function loadInventory() {
         try {
-          const response = await fetch(`${API_URL}/inventory-items${tripQuery}`);
-          if (!response.ok) throw new Error('inventory request failed');
-          const data: InventoryItem[] = await response.json();
+          const data = await apiRequest<InventoryItem[]>(
+            `/inventory-items${tripQuery}`
+          );
           if (!isCancelled()) {
             setInventoryItems(data);
           }
@@ -183,6 +181,11 @@ export default function PlannerScreen() {
     setRefreshing(true);
     await loadLists(() => false);
     setRefreshing(false);
+  }
+
+  function retryChecklist() {
+    setChecklistStatus('loading');
+    loadLists(() => false);
   }
 
   useFocusEffect(
@@ -291,10 +294,8 @@ export default function PlannerScreen() {
     setChecklistItems((prev) => prev.filter((row) => row.id !== item.id));
 
     try {
-      const response = await fetch(`${API_URL}/checklist-items/${item.id}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) throw new Error('delete request failed');
+      await apiRequest<void>(`/checklist-items/${item.id}`, { method: 'DELETE' });
+      if (checklistItems.length === 1) setChecklistStatus('empty');
     } catch {
       setChecklistItems((prev) => {
         const next = [...prev];
@@ -329,24 +330,22 @@ export default function PlannerScreen() {
     setModalError(null);
 
     try {
-      const response = await fetch(`${API_URL}/checklist-items`, {
+      const created = await apiRequest<ChecklistItem>('/checklist-items', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           label: trimmed,
           category: modalCategory,
           ...(modalInventoryItemId !== null
             ? { inventoryItemId: modalInventoryItemId }
             : {}),
           ...(currentTripId !== null ? { tripId: currentTripId } : {}),
-        }),
+        },
       });
-      if (!response.ok) throw new Error('create request failed');
-      const created: ChecklistItem = await response.json();
       setChecklistItems((prev) => [...prev, created]);
+      setChecklistStatus('ready');
       closeAddModal();
-    } catch {
-      setModalError('Could not add item');
+    } catch (error) {
+      setModalError(describeError(error));
     } finally {
       setModalSubmitting(false);
     }
@@ -391,8 +390,14 @@ export default function PlannerScreen() {
         </View>
 
         <View style={styles.checklistSection}>
-          {checklistLoading && <ActivityIndicator />}
-          {!checklistLoading &&
+          <ListState
+            status={checklistStatus}
+            emptyMessage="No checklist items yet"
+            errorMessage={checklistError ?? undefined}
+            onRetry={retryChecklist}
+            testIDPrefix="checklist"
+          />
+          {checklistStatus === 'ready' &&
             checklistItems.map((item) => (
             <View key={item.id} style={styles.checklistRow}>
               <View style={styles.checklistRowMain}>

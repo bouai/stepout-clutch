@@ -8,9 +8,9 @@ import {
   type ReactNode,
 } from 'react';
 
+import { apiRequest } from '../api';
 import type { Trip } from '../types/models';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 const SELECTED_TRIP_KEY = 'stepout_selected_trip_id';
 
 interface TripContextValue {
@@ -34,9 +34,7 @@ export function TripProvider({ children }: { children: ReactNode }) {
 
   const refreshTrips = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}/trips`);
-      if (!response.ok) throw new Error('trips request failed');
-      const data: Trip[] = await response.json();
+      const data = await apiRequest<Trip[]>('/trips');
       setTrips(data);
     } catch {
       setTrips([]);
@@ -96,13 +94,10 @@ export function TripProvider({ children }: { children: ReactNode }) {
 
   async function createTrip(name: string): Promise<Trip | null> {
     try {
-      const response = await fetch(`${API_URL}/trips`, {
+      const created = await apiRequest<Trip>('/trips', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: { name },
       });
-      if (!response.ok) throw new Error('create trip failed');
-      const created: Trip = await response.json();
       setTrips((prev) => [...prev, created]);
       selectTrip(created.id);
       return created;
@@ -113,13 +108,10 @@ export function TripProvider({ children }: { children: ReactNode }) {
 
   async function renameTrip(tripId: number, name: string): Promise<boolean> {
     try {
-      const response = await fetch(`${API_URL}/trips/${tripId}`, {
+      const updated = await apiRequest<Trip>(`/trips/${tripId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: { name },
       });
-      if (!response.ok) throw new Error('rename trip failed');
-      const updated: Trip = await response.json();
       setTrips((prev) => prev.map((trip) => (trip.id === tripId ? updated : trip)));
       return true;
     } catch {
@@ -129,10 +121,7 @@ export function TripProvider({ children }: { children: ReactNode }) {
 
   async function deleteTrip(tripId: number): Promise<boolean> {
     try {
-      const response = await fetch(`${API_URL}/trips/${tripId}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) throw new Error('delete trip failed');
+      await apiRequest<void>(`/trips/${tripId}`, { method: 'DELETE' });
       setTrips((prev) => prev.filter((trip) => trip.id !== tripId));
       if (currentTripId === tripId) selectTrip(null);
       return true;

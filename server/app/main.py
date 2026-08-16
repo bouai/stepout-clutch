@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -23,9 +24,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="StepOut API", lifespan=lifespan)
 
+# React Native does not enforce CORS, so `*` costs nothing for the app itself —
+# but it also exposes a deployed API to any web page. Narrow it by setting
+# ALLOWED_ORIGINS (comma-separated) in the deploy environment.
+_origins = os.getenv("ALLOWED_ORIGINS", "*")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"] if _origins == "*" else [o.strip() for o in _origins.split(",")],
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -14,20 +14,20 @@ import {
 } from 'react-native';
 import MapView, { Circle, LatLng, Marker } from 'react-native-maps';
 
+import ListState, { type LoadStatus } from '../components/ListState';
 import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
+import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
 import type { GeofenceTrigger, GeofenceTriggerType } from '../types/models';
 import { cardShadow, colors, radius, spacing } from '../theme';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
 const DELTA = 0.05;
 const EARTH_RADIUS_METERS = 6371000;
 
 type TrackingStatus = 'checking' | 'unavailable' | 'active';
-type ListStatus = 'loading' | 'ready' | 'error';
 type ProximityState = 'inside' | 'outside';
 
 Notifications.setNotificationHandler({
@@ -57,7 +57,8 @@ export default function ActiveTrackingScreen() {
   const [trackingStatus, setTrackingStatus] = useState<TrackingStatus>('checking');
 
   const [triggers, setTriggers] = useState<GeofenceTrigger[]>([]);
-  const [listStatus, setListStatus] = useState<ListStatus>('loading');
+  const [listStatus, setListStatus] = useState<LoadStatus>('loading');
+  const [listError, setListError] = useState<string | null>(null);
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
 
   const [pendingLocation, setPendingLocation] = useState<LatLng | null>(null);
@@ -75,35 +76,39 @@ export default function ActiveTrackingScreen() {
     triggersRef.current = triggers;
   }, [triggers]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadTriggers() {
+  const loadTriggers = useCallback(
+    async (isCancelled: () => boolean) => {
       try {
-        const url =
-          currentTripId !== null
-            ? `${API_URL}/geofence-triggers?tripId=${currentTripId}`
-            : `${API_URL}/geofence-triggers`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('geofence-triggers request failed');
-        const data: GeofenceTrigger[] = await response.json();
-        if (!cancelled) {
+        const data = await apiRequest<GeofenceTrigger[]>('/geofence-triggers', {
+          query: { tripId: currentTripId },
+        });
+        if (!isCancelled()) {
           setTriggers(data);
-          setListStatus('ready');
+          setListError(null);
+          setListStatus(data.length === 0 ? 'empty' : 'ready');
         }
-      } catch {
-        if (!cancelled) {
+      } catch (error) {
+        if (!isCancelled()) {
+          setListError(describeError(error));
           setListStatus('error');
         }
       }
-    }
+    },
+    [currentTripId]
+  );
 
-    loadTriggers();
+  function retryTriggers() {
+    setListStatus('loading');
+    loadTriggers(() => false);
+  }
 
+  useEffect(() => {
+    let cancelled = false;
+    loadTriggers(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [currentTripId]);
+  }, [loadTriggers]);
 
   useEffect(() => {
     let cancelled = false;
@@ -138,13 +143,12 @@ export default function ActiveTrackingScreen() {
               },
               trigger: null,
             });
-            fetch(`${API_URL}/geofence-events`, {
+            apiRequest('/geofence-events', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
+              body: {
                 triggerId: trigger.id,
                 direction: transitionType,
-              }),
+              },
             }).catch(() => {
               // Fire-and-forget: event logging failure must never affect the
               // notification or be surfaced to the user.
@@ -220,12 +224,10 @@ export default function ActiveTrackingScreen() {
     );
 
     try {
-      const response = await fetch(`${API_URL}/geofence-triggers/${trigger.id}`, {
+      await apiRequest<GeofenceTrigger>(`/geofence-triggers/${trigger.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive: nextActive }),
+        body: { isActive: nextActive },
       });
-      if (!response.ok) throw new Error('patch request failed');
     } catch {
       setTriggers((prev) =>
         prev.map((row) =>
@@ -258,10 +260,10 @@ export default function ActiveTrackingScreen() {
     setTriggers((prev) => prev.filter((row) => row.id !== trigger.id));
 
     try {
-      const response = await fetch(`${API_URL}/geofence-triggers/${trigger.id}`, {
+      await apiRequest<void>(`/geofence-triggers/${trigger.id}`, {
         method: 'DELETE',
       });
-      if (!response.ok) throw new Error('delete request failed');
+      if (triggers.length === 1) setListStatus('empty');
     } catch {
       setTriggers((prev) => {
         const next = [...prev];
@@ -287,10 +289,9 @@ export default function ActiveTrackingScreen() {
     setModalError(null);
 
     try {
-      const response = await fetch(`${API_URL}/geofence-triggers`, {
+      const created = await apiRequest<GeofenceTrigger>('/geofence-triggers', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: {
           label: modalLabel.trim(),
           latitude: pendingLocation.latitude,
           longitude: pendingLocation.longitude,
@@ -298,14 +299,13 @@ export default function ActiveTrackingScreen() {
           triggerType: modalType,
           notificationMessage: modalMessage.trim(),
           ...(currentTripId !== null ? { tripId: currentTripId } : {}),
-        }),
+        },
       });
-      if (!response.ok) throw new Error('create request failed');
-      const created: GeofenceTrigger = await response.json();
       setTriggers((prev) => [...prev, created]);
+      setListStatus('ready');
       closeCreateModal();
-    } catch {
-      setModalError('Could not add trigger');
+    } catch (error) {
+      setModalError(describeError(error));
     } finally {
       setModalSubmitting(false);
     }
@@ -408,13 +408,13 @@ export default function ActiveTrackingScreen() {
           showsVerticalScrollIndicator={false}
           testID="triggers-scroll"
         >
-        {listStatus === 'loading' && <ActivityIndicator />}
-        {listStatus === 'error' && (
-          <Text testID="triggers-error">Could not load triggers</Text>
-        )}
-        {listStatus === 'ready' && triggers.length === 0 && (
-          <Text testID="triggers-empty">No geofence triggers yet</Text>
-        )}
+        <ListState
+          status={listStatus}
+          emptyMessage="No geofence triggers yet"
+          errorMessage={listError ?? undefined}
+          onRetry={retryTriggers}
+          testIDPrefix="triggers"
+        />
         {listStatus === 'ready' &&
           triggers.map((trigger) => (
             <View key={trigger.id} style={styles.triggerRow}>
