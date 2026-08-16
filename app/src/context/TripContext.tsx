@@ -13,14 +13,23 @@ import type { Trip } from '../types/models';
 
 const SELECTED_TRIP_KEY = 'stepout_selected_trip_id';
 
+export interface TripCoords {
+  latitude: number;
+  longitude: number;
+}
+
 interface TripContextValue {
   trips: Trip[];
   currentTripId: number | null;
   /** False until the persisted selection has been read back from storage. */
   ready: boolean;
   selectTrip: (tripId: number | null) => void;
-  createTrip: (name: string) => Promise<Trip | null>;
-  renameTrip: (tripId: number, name: string) => Promise<boolean>;
+  createTrip: (name: string, coords?: TripCoords) => Promise<Trip | null>;
+  renameTrip: (
+    tripId: number,
+    name: string,
+    coords?: TripCoords
+  ) => Promise<boolean>;
   deleteTrip: (tripId: number) => Promise<boolean>;
   refreshTrips: () => Promise<void>;
 }
@@ -92,11 +101,16 @@ export function TripProvider({ children }: { children: ReactNode }) {
     });
   }
 
-  async function createTrip(name: string): Promise<Trip | null> {
+  async function createTrip(
+    name: string,
+    coords?: TripCoords
+  ): Promise<Trip | null> {
     try {
+      // Without coordinates a trip can never drive Home's weather card,
+      // which is why the create form offers to capture them.
       const created = await apiRequest<Trip>('/trips', {
         method: 'POST',
-        body: { name },
+        body: { name, ...(coords ?? {}) },
       });
       setTrips((prev) => [...prev, created]);
       selectTrip(created.id);
@@ -106,11 +120,15 @@ export function TripProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function renameTrip(tripId: number, name: string): Promise<boolean> {
+  async function renameTrip(
+    tripId: number,
+    name: string,
+    coords?: TripCoords
+  ): Promise<boolean> {
     try {
       const updated = await apiRequest<Trip>(`/trips/${tripId}`, {
         method: 'PATCH',
-        body: { name },
+        body: { name, ...(coords ?? {}) },
       });
       setTrips((prev) => prev.map((trip) => (trip.id === tripId ? updated : trip)));
       return true;

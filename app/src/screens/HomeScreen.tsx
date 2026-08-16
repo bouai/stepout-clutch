@@ -3,6 +3,7 @@ import * as Location from 'expo-location';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import ProgressRing from '../components/ProgressRing';
 import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
 import { apiRequest, describeError } from '../api';
@@ -31,6 +32,15 @@ interface NearestDestination {
   destination: SavedDestination;
   distance: Distance;
 }
+
+const CONDITION_COPY: Record<string, string> = {
+  rain: 'Rain expected today',
+  snow: 'Snow expected today',
+  'extreme-heat': 'Extreme heat today',
+  'extreme-cold': 'Extreme cold today',
+  wind: 'Windy today',
+  clear: 'Clear today',
+};
 
 interface LatestAlert {
   event: GeofenceEvent;
@@ -64,32 +74,6 @@ async function resolveCoordinates(): Promise<{
       usedDefault: true,
     };
   }
-}
-
-function ProgressRing({
-  label,
-  completed,
-  total,
-  testID,
-}: {
-  label: string;
-  completed: number;
-  total: number;
-  testID: string;
-}) {
-  const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-
-  return (
-    <View style={styles.ringWrapper} testID={testID}>
-      <View style={styles.ring}>
-        <Text style={styles.ringPercent}>{percent}%</Text>
-      </View>
-      <Text style={styles.ringLabel}>{label}</Text>
-      <Text style={styles.ringFraction}>
-        {completed}/{total}
-      </Text>
-    </View>
-  );
 }
 
 export default function HomeScreen() {
@@ -298,19 +282,38 @@ export default function HomeScreen() {
 
   return (
     <ScreenContainer
-      title="Home"
+      title="StepOut"
       onRefresh={handleRefresh}
       refreshing={refreshing}
       testID="home-scroll"
     >
       <TripSwitcher />
 
-      <View style={styles.card}>
+      <View style={styles.weatherCard}>
         {weatherStatus === 'loading' && <ActivityIndicator />}
         {weatherStatus === 'ready' && weather && (
           <>
-            <Text testID="home-weather-summary">
-              {Math.round(weather.temperatureCelsius)}°C · {weather.condition}
+            <Text style={styles.weatherPlace}>
+              {currentTrip?.name ?? 'Your location'}
+            </Text>
+            <View style={styles.weatherRow}>
+              <Text style={styles.weatherTemp} testID="home-weather-summary">
+                {Math.round(weather.temperatureCelsius)}°
+              </Text>
+              <View style={styles.weatherMeta}>
+                {weather.highCelsius != null && weather.lowCelsius != null && (
+                  <Text style={styles.weatherMetaText} testID="home-weather-range">
+                    H:{Math.round(weather.highCelsius)}° L:
+                    {Math.round(weather.lowCelsius)}°
+                  </Text>
+                )}
+                <Text style={styles.weatherMetaText}>
+                  {Math.round(weather.windSpeedKmh)} km/h wind
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.weatherCondition}>
+              {CONDITION_COPY[weather.condition] ?? weather.condition}
             </Text>
             {usedDefaultLocation && (
               <Text style={styles.note}>Using default location</Text>
@@ -318,63 +321,93 @@ export default function HomeScreen() {
           </>
         )}
         {weatherStatus === 'unavailable' && (
-          <Text testID="home-weather-unavailable">
+          <Text style={styles.weatherError} testID="home-weather-unavailable">
             {weatherError ?? 'Weather unavailable'}
           </Text>
         )}
       </View>
 
-      <View style={[styles.card, styles.ringsCard]}>
+      <View style={styles.ringsRow}>
         {checklistStatus === 'loading' || inventoryStatus === 'loading' ? (
-          <ActivityIndicator />
+          <View style={styles.ringCard}>
+            <ActivityIndicator />
+          </View>
         ) : (
           <>
-            <ProgressRing
-              label="Checklist"
-              completed={checkedCount}
-              total={checklistItems.length}
-              testID="home-checklist-ring"
-            />
-            <ProgressRing
-              label="Packing"
-              completed={packedCount}
-              total={inventoryItems.length}
-              testID="home-packing-ring"
-            />
+            <View style={styles.ringCard}>
+              <ProgressRing
+                label="Checklist"
+                completed={checkedCount}
+                total={checklistItems.length}
+                testID="home-checklist-ring"
+              />
+            </View>
+            <View style={styles.ringCard}>
+              <ProgressRing
+                label="Packing"
+                completed={packedCount}
+                total={inventoryItems.length}
+                testID="home-packing-ring"
+              />
+            </View>
           </>
         )}
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Up Next</Text>
+      <Text style={styles.sectionLabel}>UP NEXT</Text>
+      <View style={styles.rowCard}>
         {nearestStatus === 'loading' && <ActivityIndicator />}
         {nearestStatus === 'empty' && (
-          <Text testID="home-up-next-empty">No saved destinations yet</Text>
+          <Text style={styles.rowMuted} testID="home-up-next-empty">
+            No saved destinations yet
+          </Text>
         )}
         {nearestStatus === 'error' && (
-          <Text testID="home-up-next-error">Could not load destinations</Text>
+          <Text style={styles.rowMuted} testID="home-up-next-error">
+            Could not load destinations
+          </Text>
         )}
         {nearestStatus === 'ready' && nearest && (
-          <Text testID="home-up-next-summary">
-            {nearest.destination.label} · {nearest.distance.distanceKm} km
-          </Text>
+          <View style={styles.rowContent}>
+            <Text style={styles.rowIcon}>📍</Text>
+            <View style={styles.rowText}>
+              <Text style={styles.rowTitle} testID="home-up-next-summary">
+                {nearest.destination.label}
+              </Text>
+              <Text style={styles.rowSubtitle}>
+                {nearest.distance.distanceKm} km away
+              </Text>
+            </View>
+          </View>
         )}
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Latest Alert</Text>
+      <Text style={styles.sectionLabel}>LATEST ALERT</Text>
+      <View style={styles.rowCard}>
         {alertStatus === 'loading' && <ActivityIndicator />}
         {alertStatus === 'error' && (
-          <Text testID="home-latest-alert-error">Could not load alerts</Text>
+          <Text style={styles.rowMuted} testID="home-latest-alert-error">
+            Could not load alerts
+          </Text>
         )}
         {alertStatus === 'empty' && (
-          <Text testID="home-latest-alert-empty">No alerts yet</Text>
+          <Text style={styles.rowMuted} testID="home-latest-alert-empty">
+            No alerts yet
+          </Text>
         )}
         {alertStatus === 'ready' && latestAlert && (
-          <Text testID="home-latest-alert-summary">
-            {latestAlert.triggerLabel} · {latestAlert.event.direction} ·{' '}
-            {formatRelativeTime(latestAlert.event.firedAt)}
-          </Text>
+          <View style={styles.rowContent}>
+            <Text style={styles.rowIcon}>🔔</Text>
+            <View style={styles.rowText}>
+              <Text style={styles.rowTitle} testID="home-latest-alert-summary">
+                {latestAlert.event.direction === 'enter' ? 'Entered' : 'Left'}{' '}
+                {latestAlert.triggerLabel}
+              </Text>
+              <Text style={styles.rowSubtitle}>
+                {formatRelativeTime(latestAlert.event.firedAt)}
+              </Text>
+            </View>
+          </View>
         )}
       </View>
     </ScreenContainer>
@@ -382,52 +415,105 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.card,
+  // Translucent so the coral-to-purple gradient reads through, per the mockup;
+  // the previous opaque white cards flattened the whole screen.
+  weatherCard: {
+    backgroundColor: colors.cardTranslucent,
+    borderWidth: 1,
+    borderColor: colors.cardTranslucentBorder,
     borderRadius: radius.card,
     padding: spacing.md,
     marginBottom: spacing.md,
-    ...cardShadow,
+  },
+  weatherPlace: {
+    color: colors.textOnGradientMuted,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  weatherRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  weatherTemp: {
+    color: colors.textOnGradient,
+    fontSize: 56,
+    fontWeight: '800',
+    lineHeight: 62,
+  },
+  weatherMeta: {
+    alignItems: 'flex-end',
+    paddingTop: spacing.sm,
+  },
+  weatherMetaText: {
+    color: colors.textOnGradientMuted,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  weatherCondition: {
+    color: colors.textOnGradient,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  weatherError: {
+    color: colors.textOnGradient,
+    fontSize: 14,
   },
   note: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: colors.textOnGradientMuted,
     marginTop: 4,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  ringsCard: {
+  ringsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
   },
-  ringWrapper: {
+  ringCard: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    paddingVertical: spacing.md,
     alignItems: 'center',
+    ...cardShadow,
   },
-  ring: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    borderWidth: 4,
-    borderColor: colors.accent,
+  // Caps label sitting on the gradient above its card, not a title inside it.
+  sectionLabel: {
+    color: colors.sectionLabel,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: spacing.sm,
+  },
+  rowCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    ...cardShadow,
+  },
+  rowContent: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 6,
+    gap: spacing.md,
   },
-  ringPercent: {
-    fontSize: 14,
+  rowIcon: {
+    fontSize: 20,
+  },
+  rowText: {
+    flex: 1,
+  },
+  rowTitle: {
+    fontSize: 16,
     fontWeight: '700',
     color: colors.textPrimary,
   },
-  ringLabel: {
+  rowSubtitle: {
     fontSize: 13,
-    fontWeight: '600',
-    color: colors.textPrimary,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
-  ringFraction: {
-    fontSize: 11,
+  rowMuted: {
     color: colors.textSecondary,
   },
 });

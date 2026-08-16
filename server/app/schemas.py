@@ -181,4 +181,8 @@ class Weather(CamelModel):
     temperature_celsius: float
     wind_speed_kmh: float
     condition: ChecklistWeatherCondition
+    # Optional: the daily forecast block is a nicety for Home's weather card,
+    # and its absence must not fail the request.
+    high_celsius: float | None = None
+    low_celsius: float | None = None
     fetched_at: UtcDateTime

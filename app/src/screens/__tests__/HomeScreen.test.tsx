@@ -65,9 +65,83 @@ describe('HomeScreen', () => {
     await waitFor(() =>
       expect(view.getByTestId('home-up-next-summary')).toBeTruthy()
     );
-    const text = view.getByTestId('home-up-next-summary').props.children.join('');
-    expect(text).toContain('Tsukiji Market');
-    expect(text).toContain('5.1');
+    expect(view.getByTestId('home-up-next-summary').props.children).toBe(
+      'Tsukiji Market'
+    );
+    expect(view.getByText('5.1 km away')).toBeTruthy();
+  });
+
+  it('renders progress rings as fractions, matching the mockup', async () => {
+    stubFetch(
+      baseRoutes({
+        checklist: [
+          { id: 1, label: 'Passport', category: 'documents', isChecked: true },
+          { id: 2, label: 'Umbrella', category: 'weather', isChecked: false },
+          { id: 3, label: 'Charger', category: 'other', isChecked: false },
+        ],
+        inventory: [
+          { id: 1, name: 'Laptop', category: 'electronics', isPacked: true, quantity: 1 },
+          { id: 2, name: 'Cable', category: 'electronics', isPacked: false, quantity: 1 },
+        ],
+      })
+    );
+    const view = await renderWithProviders(<HomeScreen />);
+
+    await waitFor(() =>
+      expect(view.getByTestId('home-checklist-ring-fraction')).toBeTruthy()
+    );
+    expect(view.getByTestId('home-checklist-ring-fraction').props.children.join('')).toBe(
+      '1/3'
+    );
+    expect(view.getByTestId('home-packing-ring-fraction').props.children.join('')).toBe(
+      '1/2'
+    );
+  });
+
+  it('shows the daily high and low when the API returns them', async () => {
+    stubFetch(baseRoutes({ weather: { ...WEATHER, highCelsius: 21.4, lowCelsius: 13.8 } }));
+    const view = await renderWithProviders(<HomeScreen />);
+
+    await waitFor(() => expect(view.getByTestId('home-weather-range')).toBeTruthy());
+    expect(
+      view.getByTestId('home-weather-range').props.children.join('')
+    ).toContain('21');
+  });
+
+  it('omits the high/low row when the provider did not supply a daily block', async () => {
+    stubFetch(
+      baseRoutes({ weather: { ...WEATHER, highCelsius: null, lowCelsius: null } })
+    );
+    const view = await renderWithProviders(<HomeScreen />);
+
+    await waitFor(() =>
+      expect(view.getByTestId('home-weather-summary')).toBeTruthy()
+    );
+    expect(view.queryByTestId('home-weather-range')).toBeNull();
+  });
+
+  it('describes the alert direction in words rather than an enum value', async () => {
+    stubFetch(
+      baseRoutes({
+        events: [
+          {
+            id: 1,
+            triggerId: 1,
+            direction: 'enter',
+            firedAt: new Date().toISOString(),
+            tripId: null,
+          },
+        ],
+      })
+    );
+    const view = await renderWithProviders(<HomeScreen />);
+
+    await waitFor(() =>
+      expect(view.getByTestId('home-latest-alert-summary')).toBeTruthy()
+    );
+    expect(
+      view.getByTestId('home-latest-alert-summary').props.children.join('')
+    ).toContain('Entered Shinjuku');
   });
 
   it('renders progress rings from checklist and packing data', async () => {

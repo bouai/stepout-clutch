@@ -1,5 +1,7 @@
+import * as Location from 'expo-location';
 import { useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Modal,
   Pressable,
@@ -10,7 +12,7 @@ import {
   View,
 } from 'react-native';
 
-import { useTripContext } from '../context/TripContext';
+import { useTripContext, type TripCoords } from '../context/TripContext';
 import { cardShadow, colors, radius, spacing } from '../theme';
 
 type ModalMode = 'create' | 'rename';
@@ -22,28 +24,65 @@ export default function TripSwitcher() {
   const [mode, setMode] = useState<ModalMode | null>(null);
   const [editingTripId, setEditingTripId] = useState<number | null>(null);
   const [name, setName] = useState('');
+  const [coords, setCoords] = useState<TripCoords | null>(null);
+  const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  function resetForm() {
+    setName('');
+    setCoords(null);
+    setLocating(false);
+    setError(null);
+  }
 
   function openCreateModal() {
     setMode('create');
     setEditingTripId(null);
-    setName('');
-    setError(null);
+    resetForm();
   }
 
   function openRenameModal(tripId: number, currentName: string) {
+    const existing = trips.find((trip) => trip.id === tripId);
     setMode('rename');
     setEditingTripId(tripId);
+    resetForm();
     setName(currentName);
-    setError(null);
+    if (existing?.latitude != null && existing?.longitude != null) {
+      setCoords({ latitude: existing.latitude, longitude: existing.longitude });
+    }
   }
 
   function closeModal() {
     setMode(null);
     setEditingTripId(null);
-    setName('');
+    resetForm();
+  }
+
+  /**
+   * A trip without coordinates cannot drive Home's weather card — it silently
+   * falls back to the device's location, which is wrong for a trip you have
+   * not left for yet.
+   */
+  async function captureLocation() {
+    setLocating(true);
     setError(null);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') {
+        setError('Location permission is off, so the trip has no coordinates.');
+        return;
+      }
+      const position = await Location.getCurrentPositionAsync();
+      setCoords({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+    } catch {
+      setError('Could not read your location.');
+    } finally {
+      setLocating(false);
+    }
   }
 
   async function submit() {
@@ -55,8 +94,8 @@ export default function TripSwitcher() {
 
     const ok =
       mode === 'rename' && editingTripId !== null
-        ? await renameTrip(editingTripId, trimmed)
-        : (await createTrip(trimmed)) !== null;
+        ? await renameTrip(editingTripId, trimmed, coords ?? undefined)
+        : (await createTrip(trimmed, coords ?? undefined)) !== null;
 
     if (ok) {
       closeModal();
@@ -163,6 +202,33 @@ export default function TripSwitcher() {
               testID="trip-name-input"
             />
 
+            <Pressable
+              style={styles.locationRow}
+              onPress={captureLocation}
+              disabled={locating}
+              testID="trip-use-location-button"
+            >
+              {locating ? (
+                <ActivityIndicator size="small" />
+              ) : (
+                <Text style={styles.locationText}>
+                  {coords
+                    ? `📍 ${coords.latitude.toFixed(3)}, ${coords.longitude.toFixed(3)}`
+                    : '📍 Use my current location'}
+                </Text>
+              )}
+            </Pressable>
+
+            {coords && (
+              <Pressable onPress={() => setCoords(null)} testID="trip-clear-location">
+                <Text style={styles.clearLocationText}>Clear location</Text>
+              </Pressable>
+            )}
+
+            <Text style={styles.locationHint}>
+              Weather on Home uses the trip's location when it has one.
+            </Text>
+
             {error && (
               <Text style={styles.errorText} testID="trip-modal-error">
                 {error}
@@ -262,6 +328,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
     color: colors.textPrimary,
+  },
+  locationRow: {
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,122,99,0.12)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  locationText: {
+    color: colors.textPrimary,
+    fontWeight: '600',
+  },
+  clearLocationText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  locationHint: {
+    fontSize: 11,
+    color: colors.textSecondary,
   },
   errorText: {
     fontSize: 12,
