@@ -24,12 +24,7 @@
         "android.permission.FOREGROUND_SERVICE",
         "android.permission.POST_NOTIFICATIONS"
       ],
-      "package": "com.abhisheksr29.stepout",
-      "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSyDCXAwvZSfluBQyOKM2s-s5Sxp3lJw_hqk"
-        }
-      }
+      "package": "com.abhisheksr29.stepout"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -43,7 +38,8 @@
           "isAndroidBackgroundLocationEnabled": true
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      "@maplibre/maplibre-react-native"
     ],
     "extra": {
       "eas": {

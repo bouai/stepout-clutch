@@ -49,6 +49,80 @@ async function writeTriggerCache(triggers: GeofenceTrigger[]): Promise<void> {
 }
 
 /**
+ * Last known inside/outside state per region, so a genuine crossing can be
+ * told apart from Android reporting the state it found at registration.
+ */
+const REGION_STATE_KEY = 'stepout_geofence_region_state';
+
+type Direction = 'enter' | 'exit';
+
+/**
+ * Records an observed transition and reports whether it was a real crossing.
+ *
+ * The first observation of a region is a baseline — Android delivers one for
+ * every region as soon as it is registered — so it is stored and suppressed.
+ * A repeat of the state already recorded is likewise not a crossing.
+ */
+export async function recordTransition(
+  identifier: string,
+  direction: Direction
+): Promise<boolean> {
+  let states: Record<string, Direction> = {};
+  try {
+    const raw = await AsyncStorage.getItem(REGION_STATE_KEY);
+    if (raw) states = JSON.parse(raw) as Record<string, Direction>;
+  } catch {
+    // An unreadable state file means treating this as a baseline, which
+    // suppresses one alert rather than inventing one.
+  }
+
+  const previous = states[identifier];
+  states[identifier] = direction;
+
+  try {
+    await AsyncStorage.setItem(REGION_STATE_KEY, JSON.stringify(states));
+  } catch {
+    // Failing to persist risks a duplicate later; still better than silence.
+  }
+
+  return previous !== undefined && previous !== direction;
+}
+
+/** Drops remembered state, so the next report re-baselines rather than firing. */
+export async function resetRegionState(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem(REGION_STATE_KEY);
+  } catch {
+    // Nothing stored.
+  }
+}
+
+/**
+ * Forgets regions that are no longer registered.
+ *
+ * State is deliberately kept across sessions — a user who was already inside a
+ * zone when the app opened should not be alerted for arriving — but a deleted
+ * trigger's entry would otherwise persist forever, and an id reused by a new
+ * trigger would inherit a meaningless baseline.
+ */
+async function pruneRegionState(keepIdentifiers: string[]): Promise<void> {
+  try {
+    const raw = await AsyncStorage.getItem(REGION_STATE_KEY);
+    if (!raw) return;
+
+    const states = JSON.parse(raw) as Record<string, Direction>;
+    const keep = new Set(keepIdentifiers);
+    const pruned = Object.fromEntries(
+      Object.entries(states).filter(([identifier]) => keep.has(identifier))
+    );
+
+    await AsyncStorage.setItem(REGION_STATE_KEY, JSON.stringify(pruned));
+  } catch {
+    // Leaving stale entries is harmless next to losing live ones.
+  }
+}
+
+/**
  * Registered at module scope so the OS can find it on a cold start — the app
  * process may be relaunched purely to deliver a geofence event, with no UI.
  */
@@ -67,6 +141,21 @@ TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }) => {
   const cache = await readTriggerCache();
   const trigger = cache[region.identifier];
   const triggerId = Number(region.identifier);
+
+  // Android evaluates every region the moment it is registered and reports the
+  // current state as a transition. Registering four Tokyo zones from India
+  // therefore fired all four instantly. A real crossing has to be preceded by
+  // a known opposite state, so the first observation of a region is recorded
+  // as a baseline and never notified.
+  const isRealCrossing = await recordTransition(region.identifier, direction);
+  if (!isRealCrossing) return;
+
+  // The OS is asked to watch only the relevant direction, but initial-state
+  // reports and coarse Android filtering both deliver the other one. Without
+  // this check an exit event on an enter-type trigger still notified — using
+  // the enter-worded message, which is how "You've arrived in Shinjuku"
+  // appeared on a zone that was never entered.
+  if (trigger && trigger.triggerType !== direction) return;
 
   await Notifications.scheduleNotificationAsync({
     content: {
@@ -117,6 +206,7 @@ export async function startGeofencing(
 ): Promise<GeofencingStartResult> {
   const active = triggers.filter((trigger) => trigger.isActive);
   await writeTriggerCache(active);
+  await pruneRegionState(active.map((trigger) => String(trigger.id)));
 
   if (active.length === 0) {
     await stopGeofencing();

@@ -69,24 +69,36 @@ jest.mock('expo-notifications', () => ({
   scheduleNotificationAsync: jest.fn(async () => 'notification-id'),
 }));
 
-jest.mock('react-native-maps', () => {
+jest.mock('@maplibre/maplibre-react-native', () => {
   const React = require('react');
   const { View } = require('react-native');
   const Stub = (name) => {
-    const Component = (props) => React.createElement(View, props, props.children);
+    const Component = ({ children, ...props }) =>
+      React.createElement(View, props, children);
     Component.displayName = name;
     return Component;
   };
-  const MapView = Stub('MapView');
-  MapView.Marker = Stub('Marker');
-  MapView.Circle = Stub('Circle');
-  MapView.Polyline = Stub('Polyline');
+  // Camera is driven imperatively through a ref, so the stub has to expose the
+  // same methods — a bare View would give back a host instance without them.
+  const Camera = React.forwardRef(({ children, ...props }, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      jumpTo: jest.fn(),
+      easeTo: jest.fn(),
+      flyTo: jest.fn(),
+      fitBounds: jest.fn(),
+    }));
+    return React.createElement(View, props, children);
+  });
+  Camera.displayName = 'Camera';
+
   return {
     __esModule: true,
-    default: MapView,
-    Marker: MapView.Marker,
-    Circle: MapView.Circle,
-    Polyline: MapView.Polyline,
+    Map: Stub('Map'),
+    Camera,
+    Marker: Stub('Marker'),
+    UserLocation: Stub('UserLocation'),
+    GeoJSONSource: Stub('GeoJSONSource'),
+    Layer: Stub('Layer'),
   };
 });
 

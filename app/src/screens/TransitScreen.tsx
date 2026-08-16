@@ -11,7 +11,11 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import MapView, { LatLng, Marker, Polyline } from 'react-native-maps';
+import MapCanvas, {
+  MapLine,
+  MapPin,
+  type Coordinate,
+} from '../components/MapCanvas';
 
 import ListState, { type LoadStatus } from '../components/ListState';
 import ScreenContainer from '../components/ScreenContainer';
@@ -23,7 +27,6 @@ import { cardShadow, colors, radius, spacing } from '../theme';
 
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
-const DELTA = 0.05;
 
 type DistanceStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -74,7 +77,7 @@ export default function TransitScreen() {
   const [distance, setDistance] = useState<Distance | null>(null);
   const [distanceStatus, setDistanceStatus] = useState<DistanceStatus>('idle');
 
-  const [pendingLocation, setPendingLocation] = useState<LatLng | null>(null);
+  const [pendingLocation, setPendingLocation] = useState<Coordinate | null>(null);
   const [createLabel, setCreateLabel] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSubmitting, setCreateSubmitting] = useState(false);
@@ -252,50 +255,35 @@ export default function TransitScreen() {
       <View style={styles.mapCard}>
         <View style={styles.mapSection}>
         {currentLocation ? (
-          <MapView
-            style={styles.map}
-            region={{
-              latitude: currentLocation.latitude,
-              longitude: currentLocation.longitude,
-              latitudeDelta: DELTA,
-              longitudeDelta: DELTA,
-            }}
-            onPress={(e) => {
-              setPendingLocation(e.nativeEvent.coordinate);
+          <MapCanvas
+            center={currentLocation}
+            testID="transit-map"
+            onPress={(coordinate) => {
+              setPendingLocation(coordinate);
               setCreateLabel('');
               setCreateError(null);
             }}
           >
-            <Marker
-              coordinate={currentLocation}
-              title="You"
-              pinColor="blue"
-              testID="current-location-marker"
-            />
             {selected && (
-              <Marker
-                coordinate={{
-                  latitude: selected.latitude,
-                  longitude: selected.longitude,
-                }}
-                title={selected.label}
-                testID="destination-marker"
-              />
-            )}
-            {selected && (
-              <Polyline
-                coordinates={[currentLocation, selected]}
-                strokeWidth={2}
-              />
+              <>
+                <MapLine id="route" from={currentLocation} to={selected} />
+                <MapPin
+                  id="destination"
+                  coordinate={selected}
+                  testID="destination-marker"
+                />
+              </>
             )}
             {pendingLocation && (
-              <Marker
+              <MapPin
+                id="pending"
                 coordinate={pendingLocation}
-                pinColor="orange"
+                glyph="➕"
+                tone="muted"
                 testID="pending-marker"
               />
             )}
-          </MapView>
+          </MapCanvas>
         ) : (
           <ActivityIndicator style={styles.map} />
         )}
