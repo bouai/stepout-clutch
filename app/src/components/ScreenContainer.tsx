@@ -29,6 +29,8 @@ interface ScreenContainerProps {
   onRefresh?: () => void;
   refreshing?: boolean;
   contentStyle?: ViewStyle;
+  /** Rendered opposite the title, e.g. a settings button. */
+  headerRight?: ReactNode;
   testID?: string;
 }
 
@@ -39,6 +41,7 @@ export default function ScreenContainer({
   onRefresh,
   refreshing = false,
   contentStyle,
+  headerRight,
   testID,
 }: ScreenContainerProps) {
   const insets = useSafeAreaInsets();
@@ -50,7 +53,13 @@ export default function ScreenContainer({
     paddingBottom: insets.bottom + FLOATING_NAV_CLEARANCE,
   };
 
-  const heading = title ? <Text style={styles.title}>{title}</Text> : null;
+  const heading =
+    title || headerRight ? (
+      <View style={styles.header}>
+        {title ? <Text style={styles.title}>{title}</Text> : <View />}
+        {headerRight}
+      </View>
+    ) : null;
 
   return (
     <LinearGradient
@@ -105,8 +114,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     flexGrow: 1,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
   title: {
     ...typography.heading,
-    marginBottom: spacing.md,
   },
 });

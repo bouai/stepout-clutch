@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
 from app.routers import (
+    admin,
     checklist_items,
     geofence_events,
     geofence_triggers,
@@ -44,6 +45,7 @@ app.include_router(weather.router)
 app.include_router(trips.router)
 app.include_router(geofence_events.router)
 app.include_router(places.router)
+app.include_router(admin.router)
 
 
 @app.get("/health")
