@@ -106,12 +106,30 @@ Branch `claude/mvp-hardening-round-1`. Driven by an audit against a device check
 
 **Gates:** 105 pytest (from 78), 78 frontend tests (from **zero**), `tsc --noEmit` clean. Strategy and device checklist in [TESTING.md](TESTING.md).
 
+## Phase 7 device pass `[x]` done (2026-08-16)
+
+First real device run of Phase 7. Confirmed working: scrolling, safe-area layout, the UTC fix (Latest Alert read "37m ago", not five hours), trip scoping, progress rings as fractions, Home matching the mockup, and background geofencing registering ("Watching 3 zones in the background", correctly excluding the inactive one). Three defects surfaced that no automated layer could have caught.
+
+## Phase 8 — Personal-use readiness `[x]` code complete (2026-08-16), device pass pending
+
+Branch `claude/round-3-personal-use`. Fixes what the device pass found, plus the gap between a demo and something usable for real trips.
+
+**Defects from the device pass.**
+- *False geofence alerts.* Registering the seeded Tokyo zones fired three notifications instantly, from India. Two compounding causes: Android evaluates every region at registration and reports the current state as a transition, and the task handler never checked the reported direction against the trigger's own `triggerType` — so an exit on an enter-type zone notified using the enter-worded message. First observation of a region is now a silent baseline; direction mismatches are dropped.
+- *Maps rendered black.* The committed Google key was an evaluation key, and Android's Google Maps SDK will not render without a billing-backed one. Replaced `react-native-maps` with MapLibre + OpenFreeMap vector tiles — no key, no billing, no quota. Radius circles are GeoJSON polygons because MapLibre sizes its circle layer in screen pixels, which would keep a geofence visually fixed as the map zooms.
+- *Onboarding never got the reskin.* Flat `backgroundColor` values and `paddingTop: 60`, having been built independently of both the CLU-16 reskin and the safe-area work. Now a shared `OnboardingFrame`.
+
+**Personal-use work.** Place search via a Photon-backed `/places` endpoint — destinations, zones and trip locations were previously only creatable by tapping a map and accepting whatever coordinate landed under a fingertip. Proxied through the backend so the upstream is swappable, results are cached against keystrokes, and the User-Agent a free service expects lives in one place; results are biased by device position. Demo data cleared and a `POST /admin/reset` added behind a confirm flag, surfaced as ⚙️ → **Start fresh** on Home, which also reports which server the build points at and warns when that is `localhost`.
+
+**Gates:** 124 pytest (from 105), 100 frontend tests (from 78), `tsc --noEmit` clean.
+
 ## Known risks
 
-- **Open:** no device pass yet for anything since CLU-11. Phase 7's rebuild is the first dev client that can even run current `main` — three native modules were added after the previous binary was built. Background geofencing in particular cannot be verified by any automated layer.
+- **Open:** no device pass yet for Phase 8. MapLibre and background-location changes both need a native rebuild, and the geofence baseline fix can only be confirmed by walking a real boundary.
 - **Open:** the backend is not deployed, so only devices on this machine's LAN can use the app and it cannot be handed to a tester. `server/render.yaml` is ready; deploying needs a Render account.
 - Free-tier deployment caveats that will affect testers: the service sleeps after ~15 min idle (~50s cold start, which looks like a timeout in the app), and free Postgres expires after 30 days.
 - **No migration tooling.** `create_all` only creates missing tables; it never adds a column to an existing one. After a schema change run `python seed_demo.py --reset`.
+- **Third-party free services now on the critical path.** OpenFreeMap serves map tiles and Photon serves geocoding; both are free, keyless and run by others. If either degrades, maps or search go with it. Both are swappable in one place (`MAP_STYLE_URL` in `app/src/components/MapCanvas.tsx`, `PHOTON_URL` in `server/app/routers/places.py`).
 - Phase 3's scope risk resolved without a size surprise — the actual incident was the CLU-16/CLU-17 file collision (see above), not a Phase 3 scope blowup.
 - `expo-notifications` is permanently broken on Expo Go/Android (Expo's own intentional design, SDK 53+) — testing must go through an EAS dev-client build from here on, not Expo Go.
 - Each EAS dev-client rebuild takes ~10–15 min — batch device-testing checkpoints rather than rebuilding after every change.
