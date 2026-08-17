@@ -19,7 +19,7 @@ const TRIGGER_CACHE_KEY = 'stepout_geofence_trigger_cache';
 
 type CachedTrigger = Pick<
   GeofenceTrigger,
-  'id' | 'label' | 'notificationMessage' | 'triggerType'
+  'id' | 'label' | 'notificationMessage' | 'triggerType' | 'tripId'
 >;
 
 async function readTriggerCache(): Promise<Record<string, CachedTrigger>> {
@@ -39,6 +39,7 @@ async function writeTriggerCache(triggers: GeofenceTrigger[]): Promise<void> {
       label: trigger.label,
       notificationMessage: trigger.notificationMessage,
       triggerType: trigger.triggerType,
+      tripId: trigger.tripId,
     };
   }
   try {
@@ -123,6 +124,32 @@ async function pruneRegionState(keepIdentifiers: string[]): Promise<void> {
 }
 
 /**
+ * On a departure, append what's still unpacked for the trip — the "did you pack
+ * everything?" nudge at the moment it matters. Best-effort: any failure leaves
+ * the base message untouched rather than dropping the alert.
+ */
+export async function enrichExitBody(
+  baseBody: string,
+  direction: Direction,
+  tripId: number | null
+): Promise<string> {
+  if (direction !== 'exit' || tripId === null) return baseBody;
+  try {
+    const items = await apiRequest<{ name: string; isPacked: boolean }[]>(
+      '/inventory-items',
+      { query: { tripId } }
+    );
+    const unpacked = items.filter((item) => !item.isPacked);
+    if (unpacked.length === 0) return baseBody;
+    const names = unpacked.slice(0, 3).map((item) => item.name).join(', ');
+    const more = unpacked.length > 3 ? ` +${unpacked.length - 3} more` : '';
+    return `${baseBody} Still to pack: ${names}${more}.`;
+  } catch {
+    return baseBody;
+  }
+}
+
+/**
  * Registered at module scope so the OS can find it on a cold start — the app
  * process may be relaunched purely to deliver a geofence event, with no UI.
  */
@@ -157,12 +184,14 @@ TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }) => {
   // appeared on a zone that was never entered.
   if (trigger && trigger.triggerType !== direction) return;
 
+  const baseBody =
+    trigger?.notificationMessage ??
+    (direction === 'enter' ? 'You have arrived.' : 'You have left the area.');
+
   await Notifications.scheduleNotificationAsync({
     content: {
       title: trigger?.label ?? 'StepOut',
-      body:
-        trigger?.notificationMessage ??
-        (direction === 'enter' ? 'You have arrived.' : 'You have left the area.'),
+      body: await enrichExitBody(baseBody, direction, trigger?.tripId ?? null),
     },
     trigger: null,
   });

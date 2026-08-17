@@ -3,7 +3,12 @@ import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 
-import { GEOFENCE_TASK, startGeofencing, stopGeofencing } from '../geofencing';
+import {
+  GEOFENCE_TASK,
+  enrichExitBody,
+  startGeofencing,
+  stopGeofencing,
+} from '../geofencing';
 import type { GeofenceTrigger } from '../types/models';
 
 function trigger(overrides: Partial<GeofenceTrigger> = {}): GeofenceTrigger {
@@ -280,5 +285,68 @@ describe('stopGeofencing', () => {
     (Location.hasStartedGeofencingAsync as jest.Mock).mockResolvedValueOnce(true);
     await stopGeofencing();
     expect(Location.stopGeofencingAsync).toHaveBeenCalledWith(GEOFENCE_TASK);
+  });
+});
+
+describe('enrichExitBody (did-you-pack-everything?)', () => {
+  const INV = (over = {}) => ({
+    ok: true,
+    status: 200,
+    json: async () => [
+      { name: 'Laptop', isPacked: true },
+      { name: 'Charger', isPacked: false },
+      { name: 'Badge', isPacked: false },
+    ],
+    ...over,
+  });
+
+  it('appends unpacked items on a departure', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(INV());
+    const body = await enrichExitBody('Heading home — got everything?', 'exit', 7);
+    expect(body).toContain('Still to pack: Charger, Badge');
+  });
+
+  it('leaves the body untouched on an arrival', async () => {
+    const body = await enrichExitBody('Arrived', 'enter', 7);
+    expect(body).toBe('Arrived');
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('leaves the body untouched when the trigger has no trip', async () => {
+    const body = await enrichExitBody('Leaving', 'exit', null);
+    expect(body).toBe('Leaving');
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('says nothing extra when everything is packed', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [{ name: 'Laptop', isPacked: true }],
+    });
+    const body = await enrichExitBody('Leaving', 'exit', 7);
+    expect(body).toBe('Leaving');
+  });
+
+  it('caps the list and counts the overflow', async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => [
+        { name: 'A', isPacked: false },
+        { name: 'B', isPacked: false },
+        { name: 'C', isPacked: false },
+        { name: 'D', isPacked: false },
+        { name: 'E', isPacked: false },
+      ],
+    });
+    const body = await enrichExitBody('Leaving', 'exit', 7);
+    expect(body).toContain('A, B, C +2 more');
+  });
+
+  it('falls back to the base body when the lookup fails', async () => {
+    (global.fetch as jest.Mock).mockRejectedValue(new Error('offline'));
+    const body = await enrichExitBody('Leaving', 'exit', 7);
+    expect(body).toBe('Leaving');
   });
 });

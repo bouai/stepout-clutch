@@ -138,6 +138,22 @@ async def apply_template(trip_id: int, db: Session = Depends(get_db)):
         )
         zones_added = 1
 
+        # A commute is bookended: as well as arriving, leaving the office is a
+        # cue to check you have everything before heading home.
+        if trip.trip_type == models.TripType.COMMUTE:
+            db.add(
+                models.GeofenceTrigger(
+                    label=f"Leaving {trip.name}",
+                    latitude=trip.latitude,
+                    longitude=trip.longitude,
+                    radius_meters=templates.ARRIVAL_RADIUS_METERS,
+                    trigger_type=models.GeofenceTriggerType.EXIT,
+                    notification_message=f"Heading home from {trip.name} — got everything?",
+                    trip_id=trip.id,
+                )
+            )
+            zones_added += 1
+
     trip.template_applied = True
     db.commit()
 
