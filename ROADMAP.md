@@ -2,7 +2,7 @@
 
 Living progress-context doc. Update this whenever a phase completes or scope changes — this is the file a fresh session should read first to know where things stand.
 
-_Updated: 2026-08-17 — Phase 9 (local web harness + Smart trip setup) code-complete on `claude/round-4-smart-setup`._
+_Updated: 2026-08-17 — Phase 10 (commute intelligence, coordinate polish, magic-link auth) code-complete on `claude/round-5-commute-intel`._
 
 ## Status legend
 `[x]` done · `[~]` in progress · `[ ]` not started
@@ -139,10 +139,22 @@ Branch `claude/round-4-smart-setup`.
 
 **Gates:** 140 pytest (from 124), 105 frontend tests (from 100), `tsc --noEmit` clean. No native change — the Phase 8 dev client hot-reloads this over Metro.
 
+## Phase 10 — Commute intelligence, coordinate polish, magic-link auth `[x]` code complete (2026-08-17), device pass pending
+
+Branch `claude/round-5-commute-intel`. Three items, each web-verified in the browser harness.
+
+**Commute intelligence.** Recurring trips: a trip can repeat daily and its checklist is unchecked the first time it's opened on a new local day (`is_recurring` + `checklist_reset_on`, a device-local date; `POST /trips/{id}/reset-checklist`). Packing readiness: Home shows a "Ready to go?" card with what's still unpacked, a commute's Smart Setup also creates a departure (exit) zone at the office, and the geofence exit notification appends the unpacked items ("Still to pack: Charger, Badge").
+
+**Coordinate polish.** A trip's location can be set by place search, not just current-location; trips store a `location_name` and show it ("📍 DLF Cyber Hub, Sector 25A, Gurgaon") instead of raw coordinates. Home rows gained the mockup's chevron.
+
+**Magic-link auth — the app now has real accounts.** Sign in with an email; every trip and item is user-scoped, and cross-account access returns 404. Provider-agnostic: with no `EMAIL_SENDER` configured the magic link is returned in the response (dev mode, one-tap Continue), and setting `EMAIL_SENDER` on deploy flips it to real emailed links with no client change. `users`/`login_tokens`/`sessions` tables plus `user_id` on all six data tables; the test client authenticates by default so the prior suite runs unchanged.
+
+**Gates:** 165 pytest (from 140), 119 frontend tests (from 105), `tsc --noEmit` clean.
+
 ## Next up
 
-- **Commute intelligence** (next aha): recurring trips that reset daily, a "did you pack everything?" departure check, home⇄office bookending.
-- **Auth + deploy** (chosen: email magic-link, deploy deferred). Magic-link wants the deploy, so build it to work locally (link shown in-app) and flip to real email when the backend goes online.
+- **Device pass** on Phase 9 + 10 (Smart Setup, commute intelligence, auth). All JS/backend — a Metro reload, not a rebuild — except confirm nothing regressed natively. Background geofencing's new exit bookend and the unpacked-items notification can only be seen on hardware.
+- **Deploy** (still deferred). `server/render.yaml` is ready and now carries the `EMAIL_SENDER` hook; deploying unblocks off-LAN use and real emailed magic links.
 
 ## Known risks
 

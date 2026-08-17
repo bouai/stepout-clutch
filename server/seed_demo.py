@@ -25,8 +25,18 @@ def seed(reset: bool = False) -> None:
             print("Database already has trips; pass --reset to rebuild it.")
             return
 
-        tokyo = models.Trip(name="Tokyo", latitude=35.6762, longitude=139.6503)
-        lisbon = models.Trip(name="Lisbon", latitude=38.7223, longitude=-9.1393)
+        # All data is user-scoped now; the demo set belongs to one demo account.
+        user = db.query(models.User).filter(
+            models.User.email == "demo@stepout.app"
+        ).first()
+        if user is None:
+            user = models.User(email="demo@stepout.app")
+            db.add(user)
+            db.flush()
+        uid = user.id
+
+        tokyo = models.Trip(name="Tokyo", latitude=35.6762, longitude=139.6503, user_id=uid)
+        lisbon = models.Trip(name="Lisbon", latitude=38.7223, longitude=-9.1393, user_id=uid)
         db.add_all([tokyo, lisbon])
         db.flush()
 
@@ -35,8 +45,7 @@ def seed(reset: bool = False) -> None:
         inventory = [
             models.InventoryItem(
                 name=name, category=category, quantity=qty, is_packed=packed,
-                trip_id=tokyo.id,
-            )
+                trip_id=tokyo.id, user_id=uid)
             for name, category, qty, packed in [
                 ("Laptop", models.InventoryCategory.ELECTRONICS, 1, True),
                 ("Laptop charger", models.InventoryCategory.ELECTRONICS, 1, True),
@@ -60,8 +69,7 @@ def seed(reset: bool = False) -> None:
                 label=label, category=category, is_checked=checked,
                 is_weather_triggered=weather, weather_condition=condition,
                 sort_order=i, trip_id=tokyo.id,
-                inventory_item_id=inventory[link].id if link is not None else None,
-            )
+                inventory_item_id=inventory[link].id if link is not None else None, user_id=uid)
             for i, (label, category, checked, weather, condition, link) in enumerate([
                 ("Check passport expiry", models.ChecklistCategory.DOCUMENTS, True, False, None, 3),
                 ("Print JR Pass voucher", models.ChecklistCategory.DOCUMENTS, False, False, None, 4),
@@ -80,7 +88,7 @@ def seed(reset: bool = False) -> None:
         db.add_all(checklist)
 
         destinations = [
-            models.SavedDestination(label=label, latitude=lat, longitude=lon, trip_id=tokyo.id)
+            models.SavedDestination(label=label, latitude=lat, longitude=lon, trip_id=tokyo.id, user_id=uid)
             for label, lat, lon in [
                 ("Tsukiji Outer Market", 35.6654, 139.7707),
                 ("Shibuya Crossing", 35.6595, 139.7005),
@@ -95,8 +103,7 @@ def seed(reset: bool = False) -> None:
             models.GeofenceTrigger(
                 label=label, latitude=lat, longitude=lon, radius_meters=radius,
                 trigger_type=kind, notification_message=message,
-                is_active=active, trip_id=tokyo.id,
-            )
+                is_active=active, trip_id=tokyo.id, user_id=uid)
             for label, lat, lon, radius, kind, message, active in [
                 ("Shinjuku Ward", 35.6938, 139.7034, 800,
                  models.GeofenceTriggerType.ENTER, "You've arrived in Shinjuku", True),
@@ -118,12 +125,14 @@ def seed(reset: bool = False) -> None:
                 direction=models.GeofenceTriggerType.ENTER,
                 fired_at=now - timedelta(minutes=12),
                 trip_id=tokyo.id,
+                user_id=uid,
             ),
             models.GeofenceEvent(
                 trigger_id=triggers[1].id,
                 direction=models.GeofenceTriggerType.EXIT,
                 fired_at=now - timedelta(hours=3),
                 trip_id=tokyo.id,
+                user_id=uid,
             ),
         ])
 
@@ -131,17 +140,14 @@ def seed(reset: bool = False) -> None:
         # the dashboard, which is how trip scoping gets verified by eye.
         db.add(models.ChecklistItem(
             label="Renew EU adapter", category=models.ChecklistCategory.OTHER,
-            sort_order=0, trip_id=lisbon.id,
-        ))
+            sort_order=0, trip_id=lisbon.id, user_id=uid))
         db.add(models.SavedDestination(
-            label="Belém Tower", latitude=38.6916, longitude=-9.2160, trip_id=lisbon.id,
-        ))
+            label="Belém Tower", latitude=38.6916, longitude=-9.2160, trip_id=lisbon.id, user_id=uid))
 
         # One unscoped row, to prove the "All" view is not just a union of trips.
         db.add(models.InventoryItem(
             name="Reusable water bottle", category=models.InventoryCategory.OTHER,
-            quantity=1, is_packed=False, trip_id=None,
-        ))
+            quantity=1, is_packed=False, trip_id=None, user_id=uid))
 
         db.commit()
 
