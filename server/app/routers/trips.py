@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app import models, schemas, templates
+from app.auth import get_current_user
 from app.database import get_db
 from app.routers.weather import fetch_condition
 
@@ -19,22 +20,41 @@ SCOPED_MODELS = (
 )
 
 
+def _owned(db: Session, trip_id: int, user: models.User) -> models.Trip | None:
+    return (
+        db.query(models.Trip)
+        .filter(models.Trip.id == trip_id, models.Trip.user_id == user.id)
+        .first()
+    )
+
+
 @router.get("", response_model=list[schemas.Trip])
-def list_trips(db: Session = Depends(get_db)):
-    return db.query(models.Trip).all()
+def list_trips(
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    return db.query(models.Trip).filter(models.Trip.user_id == user.id).all()
 
 
 @router.get("/{trip_id}", response_model=schemas.Trip)
-def get_trip(trip_id: int, db: Session = Depends(get_db)):
-    trip = db.get(models.Trip, trip_id)
+def get_trip(
+    trip_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    trip = _owned(db, trip_id, user)
     if trip is None:
         raise HTTPException(status_code=404, detail="Trip not found")
     return trip
 
 
 @router.post("", response_model=schemas.Trip, status_code=201)
-def create_trip(payload: schemas.TripCreate, db: Session = Depends(get_db)):
-    trip = models.Trip(**payload.model_dump())
+def create_trip(
+    payload: schemas.TripCreate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    trip = models.Trip(**payload.model_dump(), user_id=user.id)
     db.add(trip)
     db.commit()
     db.refresh(trip)
@@ -43,9 +63,12 @@ def create_trip(payload: schemas.TripCreate, db: Session = Depends(get_db)):
 
 @router.patch("/{trip_id}", response_model=schemas.Trip)
 def update_trip(
-    trip_id: int, payload: schemas.TripUpdate, db: Session = Depends(get_db)
+    trip_id: int,
+    payload: schemas.TripUpdate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
 ):
-    trip = db.get(models.Trip, trip_id)
+    trip = _owned(db, trip_id, user)
     if trip is None:
         raise HTTPException(status_code=404, detail="Trip not found")
 
@@ -58,7 +81,11 @@ def update_trip(
 
 
 @router.post("/{trip_id}/apply-template", response_model=schemas.TemplateApplied)
-async def apply_template(trip_id: int, db: Session = Depends(get_db)):
+async def apply_template(
+    trip_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
     """Populate an empty trip from its type's template.
 
     Creates the template's checklist and packing items, layers on
@@ -66,7 +93,7 @@ async def apply_template(trip_id: int, db: Session = Depends(get_db)):
     geofence at that location. Refuses to run twice so it can't silently double
     every item.
     """
-    trip = db.get(models.Trip, trip_id)
+    trip = _owned(db, trip_id, user)
     if trip is None:
         raise HTTPException(status_code=404, detail="Trip not found")
     if trip.trip_type is None:
@@ -83,6 +110,7 @@ async def apply_template(trip_id: int, db: Session = Depends(get_db)):
                 category=seed.category,
                 sort_order=order,
                 trip_id=trip.id,
+                user_id=user.id,
             )
         )
     for seed in template.inventory:
@@ -92,6 +120,7 @@ async def apply_template(trip_id: int, db: Session = Depends(get_db)):
                 category=seed.category,
                 quantity=seed.quantity,
                 trip_id=trip.id,
+                user_id=user.id,
             )
         )
 
@@ -113,6 +142,7 @@ async def apply_template(trip_id: int, db: Session = Depends(get_db)):
                     weather_condition=condition,
                     sort_order=checklist_added,
                     trip_id=trip.id,
+                    user_id=user.id,
                 )
             )
             db.add(
@@ -120,6 +150,7 @@ async def apply_template(trip_id: int, db: Session = Depends(get_db)):
                     name=addition.inventory.name,
                     category=addition.inventory.category,
                     trip_id=trip.id,
+                    user_id=user.id,
                 )
             )
             checklist_added += 1
@@ -134,9 +165,29 @@ async def apply_template(trip_id: int, db: Session = Depends(get_db)):
                 trigger_type=models.GeofenceTriggerType.ENTER,
                 notification_message=f"Arrived at {trip.name}",
                 trip_id=trip.id,
+                user_id=user.id,
             )
         )
         zones_added = 1
+
+        # A commute is bookended: as well as arriving, leaving the office is a
+        # cue to check you have everything before heading home.
+        if trip.trip_type == models.TripType.COMMUTE:
+            db.add(
+                models.GeofenceTrigger(
+                    label=f"Leaving {trip.name}",
+                    latitude=trip.latitude,
+                    longitude=trip.longitude,
+                    radius_meters=templates.ARRIVAL_RADIUS_METERS,
+                    trigger_type=models.GeofenceTriggerType.EXIT,
+                    notification_message=(
+                        f"Heading home from {trip.name} — got everything?"
+                    ),
+                    trip_id=trip.id,
+                    user_id=user.id,
+                )
+            )
+            zones_added += 1
 
     trip.template_applied = True
     db.commit()
@@ -149,18 +200,54 @@ async def apply_template(trip_id: int, db: Session = Depends(get_db)):
     )
 
 
+@router.post("/{trip_id}/reset-checklist", response_model=schemas.ChecklistReset)
+def reset_checklist(
+    trip_id: int,
+    date: str = Query(description="The device's local date, YYYY-MM-DD"),
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    """Uncheck every checklist item on a recurring trip for a new day.
+
+    The client sends its own local date and calls this only when the trip's
+    last reset predates today — the server has no clock the user's "day" agrees
+    with, so it trusts the device's date and just records it.
+    """
+    trip = _owned(db, trip_id, user)
+    if trip is None:
+        raise HTTPException(status_code=404, detail="Trip not found")
+
+    reset_count = (
+        db.query(models.ChecklistItem)
+        .filter(
+            models.ChecklistItem.trip_id == trip_id,
+            models.ChecklistItem.user_id == user.id,
+            models.ChecklistItem.is_checked.is_(True),
+        )
+        .update({models.ChecklistItem.is_checked: False}, synchronize_session=False)
+    )
+    trip.checklist_reset_on = date
+    db.commit()
+
+    return schemas.ChecklistReset(reset_count=reset_count, checklist_reset_on=date)
+
+
 @router.delete("/{trip_id}", status_code=204)
-def delete_trip(trip_id: int, db: Session = Depends(get_db)):
-    trip = db.get(models.Trip, trip_id)
+def delete_trip(
+    trip_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    trip = _owned(db, trip_id, user)
     if trip is None:
         raise HTTPException(status_code=404, detail="Trip not found")
 
     # Detach before deleting so scoped rows fall back to the unscoped ("All")
     # view instead of pointing at a trip that no longer exists.
     for model in SCOPED_MODELS:
-        db.query(model).filter(model.trip_id == trip_id).update(
-            {model.trip_id: None}, synchronize_session=False
-        )
+        db.query(model).filter(
+            model.trip_id == trip_id, model.user_id == user.id
+        ).update({model.trip_id: None}, synchronize_session=False)
 
     db.delete(trip)
     db.commit()

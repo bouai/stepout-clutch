@@ -35,6 +35,22 @@ export class ApiError extends Error {
   }
 }
 
+// The bearer token for the signed-in account. Held in module scope so every
+// request can attach it without threading it through each call; AuthContext
+// keeps it in sync with storage.
+let authToken: string | null = null;
+
+export function setAuthToken(token: string | null): void {
+  authToken = token;
+}
+
+/** Notified on any 401, so the app can drop back to the login screen. */
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler;
+}
+
 /** Distinguishes "server said no" from "could not reach the server at all". */
 export function describeError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -79,10 +95,14 @@ export async function apiRequest<T>(
 ): Promise<T> {
   let response: Response;
 
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
   try {
     response = await fetch(buildUrl(path, query), {
       method,
-      headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch (cause) {
@@ -90,6 +110,9 @@ export async function apiRequest<T>(
   }
 
   if (!response.ok) {
+    // A 401 means the session is gone; let the app return to login rather than
+    // surfacing a generic error on every screen.
+    if (response.status === 401) onUnauthorized?.();
     throw new ApiError(`${method} ${path} failed`, response.status);
   }
 

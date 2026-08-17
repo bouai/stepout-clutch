@@ -55,7 +55,8 @@ def test_apply_populates_checklist_and_packing(client, stub_weather):
 
 def test_apply_creates_an_arrival_zone_for_a_located_trip(client, stub_weather):
     stub_weather(ChecklistWeatherCondition.CLEAR)
-    trip = make_trip(client)
+    # A day trip is located but not bookended, so it gets exactly one zone.
+    trip = make_trip(client, trip_type="day-trip")
 
     result = client.post(f"/trips/{trip['id']}/apply-template").json()
     assert result["zonesAdded"] == 1
@@ -65,6 +66,20 @@ def test_apply_creates_an_arrival_zone_for_a_located_trip(client, stub_weather):
     assert zones[0]["label"] == "Infosys Noida"
     assert zones[0]["triggerType"] == "enter"
     assert zones[0]["notificationMessage"] == "Arrived at Infosys Noida"
+
+
+def test_commute_is_bookended_with_arrival_and_departure_zones(client, stub_weather):
+    stub_weather(ChecklistWeatherCondition.CLEAR)
+    trip = make_trip(client, trip_type="commute")
+
+    result = client.post(f"/trips/{trip['id']}/apply-template").json()
+    assert result["zonesAdded"] == 2
+
+    zones = client.get(f"/geofence-triggers?tripId={trip['id']}").json()
+    by_type = {z["triggerType"]: z for z in zones}
+    assert set(by_type) == {"enter", "exit"}
+    assert by_type["enter"]["notificationMessage"] == "Arrived at Infosys Noida"
+    assert "got everything" in by_type["exit"]["notificationMessage"].lower()
 
 
 def test_rain_adds_an_umbrella(client, stub_weather):
@@ -153,5 +168,5 @@ def test_weather_failure_still_applies_the_base_template(client, stub_weather):
     assert result["weatherCondition"] is None
     commute = templates.TEMPLATES[templates.TripType.COMMUTE]
     assert result["checklistAdded"] == len(commute.checklist)
-    # A located trip still gets its arrival zone even when weather is down.
-    assert result["zonesAdded"] == 1
+    # A located commute still gets both its zones even when weather is down.
+    assert result["zonesAdded"] == 2

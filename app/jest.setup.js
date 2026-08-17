@@ -36,6 +36,23 @@ jest.mock('react-native-safe-area-context', () => {
   };
 });
 
+// Screens reach auth state through useAuth; default it to a signed-in user so
+// component tests don't each have to stand up the login flow. Tests that
+// exercise auth itself use jest.requireActual('../context/AuthContext').
+jest.mock('./src/context/AuthContext', () => {
+  const React = require('react');
+  return {
+    AuthProvider: ({ children }) => React.createElement(React.Fragment, null, children),
+    useAuth: () => ({
+      user: { id: 1, email: 'tester@example.com' },
+      ready: true,
+      requestLink: jest.fn(async () => ({ sent: false, emailEnabled: false, devToken: 't' })),
+      verify: jest.fn(async () => true),
+      logout: jest.fn(async () => {}),
+    }),
+  };
+});
+
 jest.mock('expo-location', () => ({
   requestForegroundPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),
   getForegroundPermissionsAsync: jest.fn(async () => ({ status: 'granted' })),

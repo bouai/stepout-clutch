@@ -15,6 +15,7 @@ import {
 import { useTripContext, type TripCoords } from '../context/TripContext';
 import type { TripType } from '../types/models';
 import { cardShadow, colors, radius, spacing } from '../theme';
+import PlaceSearch from './PlaceSearch';
 
 type ModalMode = 'create' | 'rename';
 
@@ -37,6 +38,7 @@ export default function TripSwitcher() {
   const [name, setName] = useState('');
   const [coords, setCoords] = useState<TripCoords | null>(null);
   const [tripType, setTripType] = useState<TripType | null>(null);
+  const [isRecurring, setIsRecurring] = useState(false);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -45,6 +47,7 @@ export default function TripSwitcher() {
     setName('');
     setCoords(null);
     setTripType(null);
+    setIsRecurring(false);
     setLocating(false);
     setError(null);
   }
@@ -62,7 +65,11 @@ export default function TripSwitcher() {
     resetForm();
     setName(currentName);
     if (existing?.latitude != null && existing?.longitude != null) {
-      setCoords({ latitude: existing.latitude, longitude: existing.longitude });
+      setCoords({
+        latitude: existing.latitude,
+        longitude: existing.longitude,
+        locationName: existing.locationName ?? undefined,
+      });
     }
   }
 
@@ -116,6 +123,7 @@ export default function TripSwitcher() {
     const result = await createTrip(trimmed, {
       coords: coords ?? undefined,
       tripType: tripType ?? undefined,
+      isRecurring,
     });
 
     if (!result) {
@@ -214,7 +222,7 @@ export default function TripSwitcher() {
                 currentTripId === trip.id ? styles.chipTextSelected : styles.chipText
               }
             >
-              {trip.name}
+              {trip.isRecurring ? `🔁 ${trip.name}` : trip.name}
             </Text>
           </Pressable>
         ))}
@@ -271,30 +279,63 @@ export default function TripSwitcher() {
                     );
                   })}
                 </View>
+
+                <Pressable
+                  style={styles.recurringRow}
+                  onPress={() => setIsRecurring((prev) => !prev)}
+                  testID="trip-recurring-toggle"
+                >
+                  <Text style={styles.recurringCheckbox}>
+                    {isRecurring ? '☑' : '☐'}
+                  </Text>
+                  <Text style={styles.recurringLabel}>
+                    🔁 Repeats daily — reset the checklist each morning
+                  </Text>
+                </Pressable>
               </>
             )}
 
-            <Pressable
-              style={styles.locationRow}
-              onPress={captureLocation}
-              disabled={locating}
-              testID="trip-use-location-button"
-            >
-              {locating ? (
-                <ActivityIndicator size="small" />
-              ) : (
+            {coords ? (
+              <View style={styles.locationChosen} testID="trip-location-chosen">
                 <Text style={styles.locationText}>
-                  {coords
-                    ? `📍 ${coords.latitude.toFixed(3)}, ${coords.longitude.toFixed(3)}`
-                    : '📍 Use my current location'}
+                  📍 {coords.locationName ??
+                    `${coords.latitude.toFixed(3)}, ${coords.longitude.toFixed(3)}`}
                 </Text>
-              )}
-            </Pressable>
-
-            {coords && (
-              <Pressable onPress={() => setCoords(null)} testID="trip-clear-location">
-                <Text style={styles.clearLocationText}>Clear location</Text>
-              </Pressable>
+                <Pressable
+                  onPress={() => setCoords(null)}
+                  testID="trip-clear-location"
+                >
+                  <Text style={styles.clearLocationText}>Change</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <>
+                <PlaceSearch
+                  placeholder="Search a place for this trip"
+                  onSelect={(place) =>
+                    setCoords({
+                      latitude: place.latitude,
+                      longitude: place.longitude,
+                      locationName: place.context
+                        ? `${place.name}, ${place.context}`
+                        : place.name,
+                    })
+                  }
+                  testIDPrefix="trip-place-search"
+                />
+                <Pressable
+                  style={styles.locationRow}
+                  onPress={captureLocation}
+                  disabled={locating}
+                  testID="trip-use-location-button"
+                >
+                  {locating ? (
+                    <ActivityIndicator size="small" />
+                  ) : (
+                    <Text style={styles.locationText}>📍 Use my current location</Text>
+                  )}
+                </Pressable>
+              </>
             )}
 
             <Text style={styles.locationHint}>
@@ -432,6 +473,20 @@ const styles = StyleSheet.create({
     color: colors.textOnGradient,
     fontWeight: '700',
   },
+  recurringRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  recurringCheckbox: {
+    fontSize: 18,
+    color: colors.textPrimary,
+  },
+  recurringLabel: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.textPrimary,
+  },
   locationRow: {
     borderWidth: 1,
     borderColor: colors.cardBorder,
@@ -440,6 +495,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
     alignItems: 'center',
+  },
+  locationChosen: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,122,99,0.12)',
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    gap: spacing.sm,
   },
   locationText: {
     color: colors.textPrimary,

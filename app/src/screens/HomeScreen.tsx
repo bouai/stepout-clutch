@@ -282,6 +282,11 @@ export default function HomeScreen() {
   const checkedCount = checklistItems.filter((item) => item.isChecked).length;
   const packedCount = inventoryItems.filter((item) => item.isPacked).length;
 
+  // The "did you pack everything?" nudge: only meaningful for a specific trip
+  // with something still to pack.
+  const unpackedItems = inventoryItems.filter((item) => !item.isPacked);
+  const showReadiness = currentTripId !== null && inventoryItems.length > 0;
+
   return (
     <ScreenContainer
       title="StepOut"
@@ -375,6 +380,28 @@ export default function HomeScreen() {
         )}
       </View>
 
+      {showReadiness && (
+        <>
+          <Text style={styles.sectionLabel}>READY TO GO?</Text>
+          <View style={styles.rowCard} testID="home-readiness">
+            {unpackedItems.length === 0 ? (
+              <Text style={styles.readinessDone} testID="home-readiness-done">
+                ✅ All packed — you're good to go.
+              </Text>
+            ) : (
+              <>
+                <Text style={styles.readinessTitle} testID="home-readiness-summary">
+                  {packedCount} of {inventoryItems.length} packed — still need:
+                </Text>
+                <Text style={styles.readinessItems} testID="home-readiness-items">
+                  {unpackedItems.map((item) => item.name).join(', ')}
+                </Text>
+              </>
+            )}
+          </View>
+        </>
+      )}
+
       <Text style={styles.sectionLabel}>UP NEXT</Text>
       <View style={styles.rowCard}>
         {nearestStatus === 'loading' && <ActivityIndicator />}
@@ -399,6 +426,7 @@ export default function HomeScreen() {
                 {nearest.distance.distanceKm} km away
               </Text>
             </View>
+            <Text style={styles.rowChevron}>›</Text>
           </View>
         )}
       </View>
@@ -428,6 +456,7 @@ export default function HomeScreen() {
                 {formatRelativeTime(latestAlert.event.firedAt)}
               </Text>
             </View>
+            <Text style={styles.rowChevron}>›</Text>
           </View>
         )}
       </View>
@@ -535,6 +564,11 @@ const styles = StyleSheet.create({
   rowText: {
     flex: 1,
   },
+  rowChevron: {
+    fontSize: 24,
+    color: colors.textSecondary,
+    fontWeight: '400',
+  },
   rowTitle: {
     fontSize: 16,
     fontWeight: '700',
@@ -547,5 +581,18 @@ const styles = StyleSheet.create({
   },
   rowMuted: {
     color: colors.textSecondary,
+  },
+  readinessTitle: {
+    color: colors.textPrimary,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  readinessItems: {
+    color: colors.accent,
+    fontWeight: '600',
+  },
+  readinessDone: {
+    color: colors.accentDark,
+    fontWeight: '700',
   },
 });

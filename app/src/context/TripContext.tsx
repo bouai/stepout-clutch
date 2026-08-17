@@ -16,17 +16,29 @@ const SELECTED_TRIP_KEY = 'stepout_selected_trip_id';
 export interface TripCoords {
   latitude: number;
   longitude: number;
+  /** Optional place name, when the location came from search rather than GPS. */
+  locationName?: string;
 }
 
 export interface CreateTripOptions {
   coords?: TripCoords;
   tripType?: TripType;
+  isRecurring?: boolean;
 }
 
 export interface CreateTripResult {
   trip: Trip;
   /** Present when a type was chosen and its template was applied. */
   applied: TemplateApplied | null;
+}
+
+/** The device's local date as YYYY-MM-DD — the "day" a reset is keyed to. */
+function localDate(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 interface TripContextValue {
@@ -46,6 +58,11 @@ interface TripContextValue {
   ) => Promise<boolean>;
   deleteTrip: (tripId: number) => Promise<boolean>;
   refreshTrips: () => Promise<void>;
+  /**
+   * If the trip is recurring and its checklist was last reset before today,
+   * uncheck it for the new day. Safe to call on every screen focus.
+   */
+  maybeResetChecklist: (tripId: number) => Promise<boolean>;
 }
 
 const TripContext = createContext<TripContextValue | undefined>(undefined);
@@ -119,13 +136,18 @@ export function TripProvider({ children }: { children: ReactNode }) {
     name: string,
     options?: CreateTripOptions
   ): Promise<CreateTripResult | null> {
-    const { coords, tripType } = options ?? {};
+    const { coords, tripType, isRecurring } = options ?? {};
     try {
       // Without coordinates a trip can never drive Home's weather card,
       // which is why the create form offers to capture them.
       const created = await apiRequest<Trip>('/trips', {
         method: 'POST',
-        body: { name, ...(coords ?? {}), ...(tripType ? { tripType } : {}) },
+        body: {
+          name,
+          ...(coords ?? {}),
+          ...(tripType ? { tripType } : {}),
+          ...(isRecurring ? { isRecurring: true } : {}),
+        },
       });
 
       // A type means the user wants the trip set up for them; apply its
@@ -181,6 +203,31 @@ export function TripProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function maybeResetChecklist(tripId: number): Promise<boolean> {
+    const trip = trips.find((candidate) => candidate.id === tripId);
+    const today = localDate();
+    if (!trip || !trip.isRecurring || trip.checklistResetOn === today) {
+      return false;
+    }
+    try {
+      await apiRequest(`/trips/${tripId}/reset-checklist`, {
+        method: 'POST',
+        query: { date: today },
+      });
+      // Record the reset locally so a second focus the same day is a no-op.
+      setTrips((prev) =>
+        prev.map((candidate) =>
+          candidate.id === tripId
+            ? { ...candidate, checklistResetOn: today }
+            : candidate
+        )
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   return (
     <TripContext.Provider
       value={{
@@ -192,6 +239,7 @@ export function TripProvider({ children }: { children: ReactNode }) {
         renameTrip,
         deleteTrip,
         refreshTrips,
+        maybeResetChecklist,
       }}
     >
       {children}

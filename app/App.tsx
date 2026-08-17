@@ -4,13 +4,24 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { TripProvider } from './src/context/TripContext';
 import RootNavigator from './src/navigation/RootNavigator';
+import LoginScreen from './src/screens/LoginScreen';
 import OnboardingFlow from './src/screens/onboarding/OnboardingFlow';
 
 const ONBOARDING_COMPLETE_KEY = 'stepout_onboarding_complete';
 
-export default function App() {
+function Loading() {
+  return (
+    <View style={styles.loadingContainer} testID="app-loading">
+      <ActivityIndicator />
+    </View>
+  );
+}
+
+/** The signed-in app: onboarding once, then the tabs. */
+function AuthedApp() {
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -19,18 +30,13 @@ export default function App() {
     async function checkOnboarding() {
       try {
         const value = await AsyncStorage.getItem(ONBOARDING_COMPLETE_KEY);
-        if (!cancelled) {
-          setOnboardingComplete(value === 'true');
-        }
+        if (!cancelled) setOnboardingComplete(value === 'true');
       } catch {
-        if (!cancelled) {
-          setOnboardingComplete(true);
-        }
+        if (!cancelled) setOnboardingComplete(true);
       }
     }
 
     checkOnboarding();
-
     return () => {
       cancelled = true;
     };
@@ -45,22 +51,34 @@ export default function App() {
     setOnboardingComplete(true);
   }
 
+  if (onboardingComplete === null) return <Loading />;
+  if (!onboardingComplete) {
+    return <OnboardingFlow onComplete={completeOnboarding} />;
+  }
+  return (
+    <TripProvider>
+      <RootNavigator />
+    </TripProvider>
+  );
+}
+
+/** Gates the app behind sign-in. */
+function Gate() {
+  const { user, ready } = useAuth();
+  if (!ready) return <Loading />;
+  if (!user) return <LoginScreen />;
+  return <AuthedApp />;
+}
+
+export default function App() {
   // `light` because every screen sits on the dark end of the coral→purple
   // gradient; the default dark icons were invisible against it.
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
-      {onboardingComplete === null ? (
-        <View style={styles.loadingContainer} testID="app-loading">
-          <ActivityIndicator />
-        </View>
-      ) : onboardingComplete ? (
-        <TripProvider>
-          <RootNavigator />
-        </TripProvider>
-      ) : (
-        <OnboardingFlow onComplete={completeOnboarding} />
-      )}
+      <AuthProvider>
+        <Gate />
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
