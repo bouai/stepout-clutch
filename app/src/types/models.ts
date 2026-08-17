@@ -8,6 +8,14 @@ export type InventoryCategory =
 
 export type GeofenceTriggerType = 'enter' | 'exit';
 
+export type TripType =
+  | 'commute'
+  | 'day-trip'
+  | 'overnight'
+  | 'business'
+  | 'flight'
+  | 'other';
+
 export type WeatherCondition =
   | 'rain'
   | 'snow'
@@ -21,7 +29,16 @@ export interface Trip {
   name: string;
   latitude: number | null;
   longitude: number | null;
+  tripType: TripType | null;
+  templateApplied: boolean;
   createdAt: string;
+}
+
+export interface TemplateApplied {
+  checklistAdded: number;
+  inventoryAdded: number;
+  zonesAdded: number;
+  weatherCondition: WeatherCondition | null;
 }
 
 export interface ChecklistItem {

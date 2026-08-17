@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useState } from 'react';
 import { Pressable, Text } from 'react-native';
 
 import { TripProvider, useTripContext } from '../TripContext';
@@ -11,19 +12,48 @@ const LISBON = { id: 2, name: 'Lisbon', latitude: null, longitude: null, created
 
 /** Surfaces context state as text, and exposes actions as pressables. */
 function Probe() {
-  const { trips, currentTripId, ready, selectTrip, renameTrip, deleteTrip } =
-    useTripContext();
+  const {
+    trips,
+    currentTripId,
+    ready,
+    selectTrip,
+    createTrip,
+    renameTrip,
+    deleteTrip,
+  } = useTripContext();
+  const [applied, setApplied] = useState('none');
 
   return (
     <>
       <Text testID="ready">{String(ready)}</Text>
       <Text testID="current">{String(currentTripId)}</Text>
       <Text testID="names">{trips.map((t) => t.name).join(',')}</Text>
+      <Text testID="applied">{applied}</Text>
       <Pressable testID="select-1" onPress={() => selectTrip(1)}>
         <Text>select 1</Text>
       </Pressable>
       <Pressable testID="select-all" onPress={() => selectTrip(null)}>
         <Text>select all</Text>
+      </Pressable>
+      <Pressable
+        testID="create-typed"
+        onPress={async () => {
+          const result = await createTrip('Infosys Noida', { tripType: 'commute' });
+          setApplied(
+            result?.applied ? `added:${result.applied.checklistAdded}` : 'no-apply'
+          );
+        }}
+      >
+        <Text>create typed</Text>
+      </Pressable>
+      <Pressable
+        testID="create-untyped"
+        onPress={async () => {
+          const result = await createTrip('Quick trip');
+          setApplied(result?.applied ? 'unexpected-apply' : 'no-apply');
+        }}
+      >
+        <Text>create untyped</Text>
       </Pressable>
       <Pressable testID="rename-1" onPress={() => renameTrip(1, 'Kyoto')}>
         <Text>rename</Text>
@@ -146,5 +176,75 @@ describe('TripContext', () => {
 
     await waitFor(() => expect(view.getByTestId('ready').props.children).toBe('true'));
     expect(view.getByTestId('current').props.children).toBe('null');
+  });
+
+  const NEW_TYPED = {
+    id: 9,
+    name: 'Infosys Noida',
+    latitude: null,
+    longitude: null,
+    tripType: 'commute',
+    templateApplied: false,
+    createdAt: 'x',
+  };
+  const APPLIED = {
+    checklistAdded: 3,
+    inventoryAdded: 5,
+    zonesAdded: 0,
+    weatherCondition: 'clear',
+  };
+
+  it('applies the template when a trip is created with a type', async () => {
+    stubFetch([
+      { match: '/trips/9/apply-template', body: APPLIED, method: 'POST' },
+      { match: '/trips', body: NEW_TYPED, method: 'POST' },
+      { match: '/trips', body: [], method: 'GET' },
+    ]);
+    const view = await renderProbe();
+    await waitFor(() => expect(view.getByTestId('ready').props.children).toBe('true'));
+
+    fireEvent.press(view.getByTestId('create-typed'));
+
+    await waitFor(() =>
+      expect(view.getByTestId('applied').props.children).toBe('added:3')
+    );
+    const calls = (global.fetch as jest.Mock).mock.calls.map((c) => String(c[0]));
+    expect(calls.some((u) => u.includes('/trips/9/apply-template'))).toBe(true);
+  });
+
+  it('does not apply a template when a trip is created without a type', async () => {
+    stubFetch([
+      { match: '/trips/9/apply-template', body: APPLIED, method: 'POST' },
+      { match: '/trips', body: { ...NEW_TYPED, tripType: null }, method: 'POST' },
+      { match: '/trips', body: [], method: 'GET' },
+    ]);
+    const view = await renderProbe();
+    await waitFor(() => expect(view.getByTestId('ready').props.children).toBe('true'));
+
+    fireEvent.press(view.getByTestId('create-untyped'));
+
+    await waitFor(() =>
+      expect(view.getByTestId('applied').props.children).toBe('no-apply')
+    );
+    const calls = (global.fetch as jest.Mock).mock.calls.map((c) => String(c[0]));
+    expect(calls.some((u) => u.includes('apply-template'))).toBe(false);
+  });
+
+  it('still creates the trip when applying the template fails', async () => {
+    stubFetch([
+      { match: '/trips/9/apply-template', body: null, ok: false, method: 'POST' },
+      { match: '/trips', body: NEW_TYPED, method: 'POST' },
+      { match: '/trips', body: [], method: 'GET' },
+    ]);
+    const view = await renderProbe();
+    await waitFor(() => expect(view.getByTestId('ready').props.children).toBe('true'));
+
+    fireEvent.press(view.getByTestId('create-typed'));
+
+    // The trip lands in the list even though the template did not apply.
+    await waitFor(() =>
+      expect(view.getByTestId('names').props.children).toBe('Infosys Noida')
+    );
+    expect(view.getByTestId('applied').props.children).toBe('no-apply');
   });
 });

@@ -44,20 +44,30 @@ interface RouteStub {
   match: string;
   body: unknown;
   ok?: boolean;
+  /**
+   * Restrict the route to one HTTP method. Needed when a list GET and a create
+   * POST share a path (`/trips`) but must return different shapes.
+   */
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
 }
 
 /**
- * Routes `fetch` calls to canned bodies by URL substring.
+ * Routes `fetch` calls to canned bodies by URL substring (and optional method).
  *
  * Order matters — the first matching route wins, so register the more specific
  * path first (`/saved-destinations/1/distance` before `/saved-destinations`).
  */
 export function stubFetch(routes: RouteStub[]) {
   const mock = global.fetch as jest.Mock;
-  mock.mockImplementation((url: string) => {
-    const route = routes.find((candidate) => String(url).includes(candidate.match));
+  mock.mockImplementation((url: string, init?: { method?: string }) => {
+    const method = (init?.method ?? 'GET').toUpperCase();
+    const route = routes.find(
+      (candidate) =>
+        String(url).includes(candidate.match) &&
+        (candidate.method === undefined || candidate.method === method)
+    );
     if (!route) {
-      return Promise.reject(new Error(`No stub registered for ${url}`));
+      return Promise.reject(new Error(`No stub registered for ${method} ${url}`));
     }
     return Promise.resolve({
       ok: route.ok ?? true,
