@@ -29,6 +29,7 @@ export interface Trip {
   name: string;
   latitude: number | null;
   longitude: number | null;
+  locationName: string | null;
   tripType: TripType | null;
   templateApplied: boolean;
   isRecurring: boolean;

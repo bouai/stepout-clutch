@@ -16,6 +16,8 @@ const SELECTED_TRIP_KEY = 'stepout_selected_trip_id';
 export interface TripCoords {
   latitude: number;
   longitude: number;
+  /** Optional place name, when the location came from search rather than GPS. */
+  locationName?: string;
 }
 
 export interface CreateTripOptions {

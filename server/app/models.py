@@ -51,6 +51,9 @@ class Trip(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Human-readable name for the coordinates (from place search), so the UI can
+    # show "Infosys Noida" instead of "28.459, 77.519".
+    location_name: Mapped[str | None] = mapped_column(String, nullable=True)
     trip_type: Mapped[TripType | None] = mapped_column(Enum(TripType), nullable=True)
     # Set once a template has been applied, so re-applying can be refused rather
     # than silently doubling every item.

@@ -41,6 +41,7 @@ class TripBase(CamelModel):
     name: str
     latitude: float | None = None
     longitude: float | None = None
+    location_name: str | None = None
     trip_type: TripType | None = None
     is_recurring: bool = False
 
@@ -60,6 +61,7 @@ class TripUpdate(CamelModel):
     name: str | None = Field(default=None, min_length=1)
     latitude: float | None = None
     longitude: float | None = None
+    location_name: str | None = None
     trip_type: TripType | None = None
     is_recurring: bool | None = None
 

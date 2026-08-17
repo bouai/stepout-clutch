@@ -426,6 +426,7 @@ export default function HomeScreen() {
                 {nearest.distance.distanceKm} km away
               </Text>
             </View>
+            <Text style={styles.rowChevron}>›</Text>
           </View>
         )}
       </View>
@@ -455,6 +456,7 @@ export default function HomeScreen() {
                 {formatRelativeTime(latestAlert.event.firedAt)}
               </Text>
             </View>
+            <Text style={styles.rowChevron}>›</Text>
           </View>
         )}
       </View>
@@ -561,6 +563,11 @@ const styles = StyleSheet.create({
   },
   rowText: {
     flex: 1,
+  },
+  rowChevron: {
+    fontSize: 24,
+    color: colors.textSecondary,
+    fontWeight: '400',
   },
   rowTitle: {
     fontSize: 16,

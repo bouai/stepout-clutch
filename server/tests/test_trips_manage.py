@@ -148,3 +148,30 @@ def test_delete_trip_leaves_other_trips_rows_alone(client):
     still_scoped = client.get(f"/checklist-items?tripId={kept['id']}").json()
     assert len(still_scoped) == 1
     assert still_scoped[0]["label"] == "Passport"
+
+
+def test_trip_stores_and_returns_a_location_name(client):
+    created = client.post(
+        "/trips",
+        json={
+            "name": "Work",
+            "latitude": 28.46,
+            "longitude": 77.52,
+            "locationName": "Infosys Noida, Sector 62",
+        },
+    )
+    assert created.status_code == 201
+    assert created.json()["locationName"] == "Infosys Noida, Sector 62"
+
+    trip_id = created.json()["id"]
+    assert client.get(f"/trips/{trip_id}").json()["locationName"] == "Infosys Noida, Sector 62"
+
+
+def test_location_name_can_be_updated(client):
+    trip = client.post("/trips", json={"name": "Work"}).json()
+    updated = client.patch(
+        f"/trips/{trip['id']}",
+        json={"latitude": 28.46, "longitude": 77.52, "locationName": "Cyber Hub"},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["locationName"] == "Cyber Hub"
