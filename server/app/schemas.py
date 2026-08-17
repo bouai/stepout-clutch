@@ -37,6 +37,37 @@ class CamelModel(BaseModel):
     )
 
 
+class User(CamelModel):
+    id: int
+    email: str
+    created_at: UtcDateTime
+
+
+class RequestLink(CamelModel):
+    email: str = Field(min_length=3)
+
+
+class RequestLinkResult(CamelModel):
+    """What request-link returns.
+
+    In dev-auth mode (no email provider) the token/link is handed back so login
+    can complete without an inbox; in production only `sent` is meaningful.
+    """
+
+    sent: bool
+    email_enabled: bool
+    dev_token: str | None = None
+
+
+class VerifyToken(CamelModel):
+    token: str
+
+
+class AuthSession(CamelModel):
+    session_token: str
+    user: User
+
+
 class TripBase(CamelModel):
     name: str
     latitude: float | None = None

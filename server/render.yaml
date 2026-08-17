@@ -32,6 +32,11 @@ services:
       # Lock this down to specific origins if a web client is ever added.
       - key: ALLOWED_ORIGINS
         value: "*"
+      # Auth runs in dev mode (magic link returned in the response, no email)
+      # until this is set to a configured email sender. Setting it is the only
+      # step between local login and real emailed magic links.
+      - key: EMAIL_SENDER
+        sync: false
 
 databases:
   - name: stepout-db

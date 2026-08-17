@@ -7,6 +7,41 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    email: Mapped[str] = mapped_column(String, unique=True, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+class LoginToken(Base):
+    """A short-lived magic-link token, exchanged for a session."""
+
+    __tablename__ = "login_tokens"
+
+    token: Mapped[str] = mapped_column(String, primary_key=True)
+    email: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    consumed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class Session(Base):
+    """A long-lived session token sent as a bearer credential."""
+
+    __tablename__ = "sessions"
+
+    token: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
 class ChecklistCategory(str, enum.Enum):
     WEATHER = "weather"
     ROUTINE = "routine"
@@ -48,6 +83,9 @@ class Trip(Base):
     __tablename__ = "trips"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
     name: Mapped[str] = mapped_column(String, nullable=False)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -75,6 +113,9 @@ class ChecklistItem(Base):
     __tablename__ = "checklist_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
     label: Mapped[str] = mapped_column(String, nullable=False)
     category: Mapped[ChecklistCategory] = mapped_column(
         Enum(ChecklistCategory), nullable=False
@@ -102,6 +143,9 @@ class InventoryItem(Base):
     __tablename__ = "inventory_items"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
     name: Mapped[str] = mapped_column(String, nullable=False)
     category: Mapped[InventoryCategory] = mapped_column(
         Enum(InventoryCategory), nullable=False
@@ -117,6 +161,9 @@ class GeofenceTrigger(Base):
     __tablename__ = "geofence_triggers"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
     label: Mapped[str] = mapped_column(String, nullable=False)
     latitude: Mapped[float] = mapped_column(Float, nullable=False)
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
@@ -135,6 +182,9 @@ class SavedDestination(Base):
     __tablename__ = "saved_destinations"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
     label: Mapped[str] = mapped_column(String, nullable=False)
     latitude: Mapped[float] = mapped_column(Float, nullable=False)
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
@@ -147,6 +197,9 @@ class GeofenceEvent(Base):
     __tablename__ = "geofence_events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
     trigger_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("geofence_triggers.id"), nullable=False
     )

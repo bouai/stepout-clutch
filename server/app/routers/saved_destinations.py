@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app import models, schemas
+from app.auth import get_current_user
 from app.database import get_db
 
 router = APIRouter(prefix="/saved-destinations", tags=["saved-destinations"])
@@ -38,16 +39,23 @@ def _initial_bearing_degrees(lat1: float, lon1: float, lat2: float, lon2: float)
 def list_saved_destinations(
     trip_id: int | None = Query(default=None, alias="tripId"),
     db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
 ):
-    query = db.query(models.SavedDestination)
+    query = db.query(models.SavedDestination).filter(
+        models.SavedDestination.user_id == user.id
+    )
     if trip_id is not None:
         query = query.filter(models.SavedDestination.trip_id == trip_id)
     return query.all()
 
 
 @router.get("/{destination_id}", response_model=schemas.SavedDestination)
-def get_saved_destination(destination_id: int, db: Session = Depends(get_db)):
-    destination = db.get(models.SavedDestination, destination_id)
+def get_saved_destination(
+    destination_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    destination = _owned(db, destination_id, user)
     if destination is None:
         raise HTTPException(status_code=404, detail="Saved destination not found")
     return destination
@@ -55,9 +63,11 @@ def get_saved_destination(destination_id: int, db: Session = Depends(get_db)):
 
 @router.post("", response_model=schemas.SavedDestination, status_code=201)
 def create_saved_destination(
-    payload: schemas.SavedDestinationCreate, db: Session = Depends(get_db)
+    payload: schemas.SavedDestinationCreate,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
 ):
-    destination = models.SavedDestination(**payload.model_dump())
+    destination = models.SavedDestination(**payload.model_dump(), user_id=user.id)
     db.add(destination)
     db.commit()
     db.refresh(destination)
@@ -65,8 +75,12 @@ def create_saved_destination(
 
 
 @router.delete("/{destination_id}", status_code=204)
-def delete_saved_destination(destination_id: int, db: Session = Depends(get_db)):
-    destination = db.get(models.SavedDestination, destination_id)
+def delete_saved_destination(
+    destination_id: int,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    destination = _owned(db, destination_id, user)
     if destination is None:
         raise HTTPException(status_code=404, detail="Saved destination not found")
 
@@ -80,8 +94,9 @@ def get_distance(
     lat: float = Query(...),
     lon: float = Query(...),
     db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
 ):
-    destination = db.get(models.SavedDestination, destination_id)
+    destination = _owned(db, destination_id, user)
     if destination is None:
         raise HTTPException(status_code=404, detail="Saved destination not found")
 
@@ -94,4 +109,17 @@ def get_distance(
 
     return schemas.Distance(
         distance_km=round(distance_km, 1), bearing_degrees=bearing_degrees
+    )
+
+
+def _owned(
+    db: Session, destination_id: int, user: models.User
+) -> models.SavedDestination | None:
+    return (
+        db.query(models.SavedDestination)
+        .filter(
+            models.SavedDestination.id == destination_id,
+            models.SavedDestination.user_id == user.id,
+        )
+        .first()
     )
