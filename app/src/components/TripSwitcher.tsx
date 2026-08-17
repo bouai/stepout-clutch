@@ -13,9 +13,20 @@ import {
 } from 'react-native';
 
 import { useTripContext, type TripCoords } from '../context/TripContext';
+import type { TripType } from '../types/models';
 import { cardShadow, colors, radius, spacing } from '../theme';
 
 type ModalMode = 'create' | 'rename';
+
+/** Trip types offered in the create form, with the label the user sees. */
+const TRIP_TYPES: { value: TripType; label: string }[] = [
+  { value: 'commute', label: 'Commute' },
+  { value: 'day-trip', label: 'Day trip' },
+  { value: 'overnight', label: 'Overnight' },
+  { value: 'business', label: 'Business' },
+  { value: 'flight', label: 'Flight' },
+  { value: 'other', label: 'Other' },
+];
 
 export default function TripSwitcher() {
   const { trips, currentTripId, selectTrip, createTrip, renameTrip, deleteTrip } =
@@ -25,6 +36,7 @@ export default function TripSwitcher() {
   const [editingTripId, setEditingTripId] = useState<number | null>(null);
   const [name, setName] = useState('');
   const [coords, setCoords] = useState<TripCoords | null>(null);
+  const [tripType, setTripType] = useState<TripType | null>(null);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -32,6 +44,7 @@ export default function TripSwitcher() {
   function resetForm() {
     setName('');
     setCoords(null);
+    setTripType(null);
     setLocating(false);
     setError(null);
   }
@@ -92,17 +105,47 @@ export default function TripSwitcher() {
     setSubmitting(true);
     setError(null);
 
-    const ok =
-      mode === 'rename' && editingTripId !== null
-        ? await renameTrip(editingTripId, trimmed, coords ?? undefined)
-        : (await createTrip(trimmed, coords ?? undefined)) !== null;
-
-    if (ok) {
-      closeModal();
-    } else {
-      setError(mode === 'rename' ? 'Could not rename trip' : 'Could not create trip');
+    if (mode === 'rename' && editingTripId !== null) {
+      const ok = await renameTrip(editingTripId, trimmed, coords ?? undefined);
+      if (ok) closeModal();
+      else setError('Could not rename trip');
+      setSubmitting(false);
+      return;
     }
+
+    const result = await createTrip(trimmed, {
+      coords: coords ?? undefined,
+      tripType: tripType ?? undefined,
+    });
+
+    if (!result) {
+      setError('Could not create trip');
+      setSubmitting(false);
+      return;
+    }
+
+    closeModal();
     setSubmitting(false);
+
+    // Tell the user what the template did — this is the "it set itself up"
+    // moment, and it also explains why their tabs are suddenly populated.
+    if (result.applied) {
+      const { checklistAdded, inventoryAdded, zonesAdded, weatherCondition } =
+        result.applied;
+      const parts = [
+        `${checklistAdded} checklist item${checklistAdded === 1 ? '' : 's'}`,
+        `${inventoryAdded} packing item${inventoryAdded === 1 ? '' : 's'}`,
+      ];
+      if (zonesAdded > 0) parts.push('an arrival alert');
+      const weatherNote =
+        weatherCondition && weatherCondition !== 'clear'
+          ? `\n\nAdded for ${weatherCondition} in the forecast.`
+          : '';
+      Alert.alert(
+        `${trimmed} is ready`,
+        `Set up ${parts.join(', ')}.${weatherNote}`
+      );
+    }
   }
 
   // Long-press is the only affordance on a chip that small; a visible menu
@@ -202,6 +245,35 @@ export default function TripSwitcher() {
               testID="trip-name-input"
             />
 
+            {mode === 'create' && (
+              <>
+                <Text style={styles.pickerLabel}>
+                  Trip type — we'll set up a starter list
+                </Text>
+                <View style={styles.typeGrid}>
+                  {TRIP_TYPES.map((type) => {
+                    const selected = tripType === type.value;
+                    return (
+                      <Pressable
+                        key={type.value}
+                        style={[styles.typeChip, selected && styles.typeChipSelected]}
+                        onPress={() => setTripType(selected ? null : type.value)}
+                        testID={`trip-type-${type.value}`}
+                      >
+                        <Text
+                          style={
+                            selected ? styles.typeChipTextSelected : styles.typeChipText
+                          }
+                        >
+                          {type.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+
             <Pressable
               style={styles.locationRow}
               onPress={captureLocation}
@@ -226,7 +298,9 @@ export default function TripSwitcher() {
             )}
 
             <Text style={styles.locationHint}>
-              Weather on Home uses the trip's location when it has one.
+              {tripType && mode === 'create'
+                ? "A location adds weather-based items and an arrival alert."
+                : "Weather on Home uses the trip's location when it has one."}
             </Text>
 
             {error && (
@@ -328,6 +402,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
     color: colors.textPrimary,
+  },
+  pickerLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  typeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  typeChip: {
+    borderWidth: 1,
+    borderColor: colors.textSecondary,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
+  },
+  typeChipSelected: {
+    borderColor: colors.accent,
+    backgroundColor: colors.accent,
+  },
+  typeChipText: {
+    color: colors.textPrimary,
+    fontWeight: '600',
+  },
+  typeChipTextSelected: {
+    color: colors.textOnGradient,
+    fontWeight: '700',
   },
   locationRow: {
     borderWidth: 1,

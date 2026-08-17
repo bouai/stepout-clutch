@@ -35,6 +35,15 @@ class ChecklistWeatherCondition(str, enum.Enum):
     CLEAR = "clear"
 
 
+class TripType(str, enum.Enum):
+    COMMUTE = "commute"
+    DAY_TRIP = "day-trip"
+    OVERNIGHT = "overnight"
+    BUSINESS = "business"
+    FLIGHT = "flight"
+    OTHER = "other"
+
+
 class Trip(Base):
     __tablename__ = "trips"
 
@@ -42,6 +51,12 @@ class Trip(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    trip_type: Mapped[TripType | None] = mapped_column(Enum(TripType), nullable=True)
+    # Set once a template has been applied, so re-applying can be refused rather
+    # than silently doubling every item.
+    template_applied: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
     )

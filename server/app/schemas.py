@@ -9,6 +9,7 @@ from app.models import (
     ChecklistWeatherCondition,
     GeofenceTriggerType,
     InventoryCategory,
+    TripType,
 )
 
 
@@ -40,6 +41,7 @@ class TripBase(CamelModel):
     name: str
     latitude: float | None = None
     longitude: float | None = None
+    trip_type: TripType | None = None
 
 
 class TripCreate(TripBase):
@@ -48,6 +50,7 @@ class TripCreate(TripBase):
 
 class Trip(TripBase):
     id: int
+    template_applied: bool = False
     created_at: UtcDateTime
 
 
@@ -55,6 +58,16 @@ class TripUpdate(CamelModel):
     name: str | None = Field(default=None, min_length=1)
     latitude: float | None = None
     longitude: float | None = None
+    trip_type: TripType | None = None
+
+
+class TemplateApplied(CamelModel):
+    """Summary of what applying a template created, shown to the user."""
+
+    checklist_added: int
+    inventory_added: int
+    zones_added: int
+    weather_condition: ChecklistWeatherCondition | None = None
 
 
 class ChecklistItemBase(CamelModel):

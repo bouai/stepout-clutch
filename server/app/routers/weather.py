@@ -13,6 +13,15 @@ OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 SNOW_CODES = {71, 73, 75, 77, 85, 86}
 RAIN_CODES = {51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99}
 
+OPEN_METEO_PARAMS = {
+    "current_weather": "true",
+    "daily": "temperature_2m_max,temperature_2m_min",
+    "forecast_days": 1,
+    "timezone": "auto",
+    "temperature_unit": "celsius",
+    "windspeed_unit": "kmh",
+}
+
 
 def _map_condition(
     weathercode: int, temperature_celsius: float, wind_speed_kmh: float
@@ -28,6 +37,28 @@ def _map_condition(
     if wind_speed_kmh > 40:
         return ChecklistWeatherCondition.WIND
     return ChecklistWeatherCondition.CLEAR
+
+
+async def fetch_condition(lat: float, lon: float) -> ChecklistWeatherCondition | None:
+    """Just the condition for a location, or None if the forecast is unreachable.
+
+    Used by the trip-template engine to decide weather-driven items. Returns
+    None rather than raising, because failing to reach Open-Meteo must not fail
+    trip setup — the user still gets their template, just without the extras.
+    """
+    params = {"latitude": lat, "longitude": lon, **OPEN_METEO_PARAMS}
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(OPEN_METEO_URL, params=params)
+            response.raise_for_status()
+        current = response.json().get("current_weather")
+        if current is None:
+            return None
+    except httpx.HTTPError:
+        return None
+    return _map_condition(
+        current["weathercode"], current["temperature"], current["windspeed"]
+    )
 
 
 def _today_extreme(payload: dict, key: str) -> float | None:

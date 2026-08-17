@@ -9,7 +9,7 @@ import {
 } from 'react';
 
 import { apiRequest } from '../api';
-import type { Trip } from '../types/models';
+import type { TemplateApplied, Trip, TripType } from '../types/models';
 
 const SELECTED_TRIP_KEY = 'stepout_selected_trip_id';
 
@@ -18,13 +18,27 @@ export interface TripCoords {
   longitude: number;
 }
 
+export interface CreateTripOptions {
+  coords?: TripCoords;
+  tripType?: TripType;
+}
+
+export interface CreateTripResult {
+  trip: Trip;
+  /** Present when a type was chosen and its template was applied. */
+  applied: TemplateApplied | null;
+}
+
 interface TripContextValue {
   trips: Trip[];
   currentTripId: number | null;
   /** False until the persisted selection has been read back from storage. */
   ready: boolean;
   selectTrip: (tripId: number | null) => void;
-  createTrip: (name: string, coords?: TripCoords) => Promise<Trip | null>;
+  createTrip: (
+    name: string,
+    options?: CreateTripOptions
+  ) => Promise<CreateTripResult | null>;
   renameTrip: (
     tripId: number,
     name: string,
@@ -103,18 +117,37 @@ export function TripProvider({ children }: { children: ReactNode }) {
 
   async function createTrip(
     name: string,
-    coords?: TripCoords
-  ): Promise<Trip | null> {
+    options?: CreateTripOptions
+  ): Promise<CreateTripResult | null> {
+    const { coords, tripType } = options ?? {};
     try {
       // Without coordinates a trip can never drive Home's weather card,
       // which is why the create form offers to capture them.
       const created = await apiRequest<Trip>('/trips', {
         method: 'POST',
-        body: { name, ...(coords ?? {}) },
+        body: { name, ...(coords ?? {}), ...(tripType ? { tripType } : {}) },
       });
-      setTrips((prev) => [...prev, created]);
-      selectTrip(created.id);
-      return created;
+
+      // A type means the user wants the trip set up for them; apply its
+      // template so the checklist, packing list and arrival zone exist before
+      // they ever open a tab. A failure here must not lose the trip itself.
+      let applied: TemplateApplied | null = null;
+      let finalTrip = created;
+      if (tripType) {
+        try {
+          applied = await apiRequest<TemplateApplied>(
+            `/trips/${created.id}/apply-template`,
+            { method: 'POST' }
+          );
+          finalTrip = { ...created, templateApplied: true };
+        } catch {
+          // Leave `applied` null; the trip is created, just not pre-filled.
+        }
+      }
+
+      setTrips((prev) => [...prev, finalTrip]);
+      selectTrip(finalTrip.id);
+      return { trip: finalTrip, applied };
     } catch {
       return null;
     }
