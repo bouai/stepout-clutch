@@ -2,6 +2,8 @@
 
 Living progress-context doc. Update this whenever a phase completes or scope changes — this is the file a fresh session should read first to know where things stand.
 
+_Updated: 2026-08-17 — Phase 9 (local web harness + Smart trip setup) code-complete on `claude/round-4-smart-setup`._
+
 ## Status legend
 `[x]` done · `[~]` in progress · `[ ]` not started
 
@@ -123,9 +125,30 @@ Branch `claude/round-3-personal-use`. Fixes what the device pass found, plus the
 
 **Gates:** 124 pytest (from 105), 100 frontend tests (from 78), `tsc --noEmit` clean.
 
+## Phase 8 device pass `[x]` done (2026-08-17)
+
+Ran on device after a false-start where a stale Metro (started before MapLibre was installed) served an unresolvable bundle and looked like a broken build — the fix was a clean `expo start --clear`, not code (see [TESTING.md](TESTING.md) and the observation log). Confirmed working: MapLibre tiles render (New Delhi / Greater Noida), trip creation with "use my current location" captured real coordinates, place search fields present, onboarding gradients correct. No new defects surfaced. Also cleared the false-geofence-alert regression by construction.
+
+## Phase 9 — Local web harness + Smart trip setup `[x]` code complete (2026-08-17), device pass pending
+
+Branch `claude/round-4-smart-setup`.
+
+**Local web run.** The app now runs in a browser on the dev machine (Expo Web), so most changes can be verified without a phone. `@maplibre/maplibre-react-native` is native-only, so maps come through a platform sibling `MapCanvas.web.tsx` backed by `maplibre-gl`; `geofencing.web.ts` stubs the OS-only geofencing. `scripts/dev.sh` restarts backend + Metro from a clean slate (both cache state at startup and silently serve stale routes/module maps — this bit twice this project). Verified by driving the browser directly: onboarding, Home, maps, place search all work.
+
+**Smart trip setup — the first product "aha".** Creating a trip no longer lands on a blank slate. A `trip_type` (Commute / Day trip / Overnight / Business / Flight / Other) drives `POST /trips/{id}/apply-template`, which seeds a checklist and packing list from `app/templates.py`, layers on a weather-driven item when the trip has coordinates (umbrella for rain, etc., tagged with the condition), and drops a 300m arrival geofence. Idempotent (refuses a second run), and a weather outage degrades to the base template. The New Trip form gains a type picker and shows a summary of what was set up. Verified end-to-end in the browser: a Commute trip auto-populated 3 checklist + 5 packing items.
+
+**Gates:** 140 pytest (from 124), 105 frontend tests (from 100), `tsc --noEmit` clean. No native change — the Phase 8 dev client hot-reloads this over Metro.
+
+## Next up
+
+- **Commute intelligence** (next aha): recurring trips that reset daily, a "did you pack everything?" departure check, home⇄office bookending.
+- **Auth + deploy** (chosen: email magic-link, deploy deferred). Magic-link wants the deploy, so build it to work locally (link shown in-app) and flip to real email when the backend goes online.
+
 ## Known risks
 
-- **Open:** no device pass yet for Phase 8. MapLibre and background-location changes both need a native rebuild, and the geofence baseline fix can only be confirmed by walking a real boundary.
+- **Open:** no device pass yet for Phase 9's Smart Setup (JS-only, so just a Metro reload, not a rebuild). The web harness verified the flow, but the phone pass is still owed.
+- **Open:** two free third-party services are on the critical path — OpenFreeMap (tiles) and Photon (geocoding). Both keyless, both run by others; swappable in one place each (`MAP_STYLE_URL`, `PHOTON_URL`).
+- **Open:** no device pass yet for Phase 8's earlier state. MapLibre and background-location changes both need a native rebuild, and the geofence baseline fix can only be confirmed by walking a real boundary.
 - **Open:** the backend is not deployed, so only devices on this machine's LAN can use the app and it cannot be handed to a tester. `server/render.yaml` is ready; deploying needs a Render account.
 - Free-tier deployment caveats that will affect testers: the service sleeps after ~15 min idle (~50s cold start, which looks like a timeout in the app), and free Postgres expires after 30 days.
 - **No migration tooling.** `create_all` only creates missing tables; it never adds a column to an existing one. After a schema change run `python seed_demo.py --reset`.
