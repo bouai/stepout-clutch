@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app import models, schemas, templates
@@ -147,6 +147,36 @@ async def apply_template(trip_id: int, db: Session = Depends(get_db)):
         zones_added=zones_added,
         weather_condition=condition,
     )
+
+
+@router.post("/{trip_id}/reset-checklist", response_model=schemas.ChecklistReset)
+def reset_checklist(
+    trip_id: int,
+    date: str = Query(description="The device's local date, YYYY-MM-DD"),
+    db: Session = Depends(get_db),
+):
+    """Uncheck every checklist item on a recurring trip for a new day.
+
+    The client sends its own local date and calls this only when the trip's
+    last reset predates today — the server has no clock the user's "day" agrees
+    with, so it trusts the device's date and just records it.
+    """
+    trip = db.get(models.Trip, trip_id)
+    if trip is None:
+        raise HTTPException(status_code=404, detail="Trip not found")
+
+    reset_count = (
+        db.query(models.ChecklistItem)
+        .filter(
+            models.ChecklistItem.trip_id == trip_id,
+            models.ChecklistItem.is_checked.is_(True),
+        )
+        .update({models.ChecklistItem.is_checked: False}, synchronize_session=False)
+    )
+    trip.checklist_reset_on = date
+    db.commit()
+
+    return schemas.ChecklistReset(reset_count=reset_count, checklist_reset_on=date)
 
 
 @router.delete("/{trip_id}", status_code=204)

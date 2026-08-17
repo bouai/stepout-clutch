@@ -42,6 +42,7 @@ class TripBase(CamelModel):
     latitude: float | None = None
     longitude: float | None = None
     trip_type: TripType | None = None
+    is_recurring: bool = False
 
 
 class TripCreate(TripBase):
@@ -51,6 +52,7 @@ class TripCreate(TripBase):
 class Trip(TripBase):
     id: int
     template_applied: bool = False
+    checklist_reset_on: str | None = None
     created_at: UtcDateTime
 
 
@@ -59,6 +61,14 @@ class TripUpdate(CamelModel):
     latitude: float | None = None
     longitude: float | None = None
     trip_type: TripType | None = None
+    is_recurring: bool | None = None
+
+
+class ChecklistReset(CamelModel):
+    """Result of resetting a recurring trip's checklist for a new day."""
+
+    reset_count: int
+    checklist_reset_on: str
 
 
 class TemplateApplied(CamelModel):

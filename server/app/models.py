@@ -57,6 +57,12 @@ class Trip(Base):
     template_applied: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )
+    # A recurring trip (a commute) starts each day fresh: its checklist is
+    # unchecked when a new local day is first seen.
+    is_recurring: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # The local date (YYYY-MM-DD) the checklist was last reset for. Stored as a
+    # plain string because the "day" that matters is the device's, not UTC's.
+    checklist_reset_on: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
     )

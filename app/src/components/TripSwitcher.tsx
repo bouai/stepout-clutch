@@ -37,6 +37,7 @@ export default function TripSwitcher() {
   const [name, setName] = useState('');
   const [coords, setCoords] = useState<TripCoords | null>(null);
   const [tripType, setTripType] = useState<TripType | null>(null);
+  const [isRecurring, setIsRecurring] = useState(false);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -45,6 +46,7 @@ export default function TripSwitcher() {
     setName('');
     setCoords(null);
     setTripType(null);
+    setIsRecurring(false);
     setLocating(false);
     setError(null);
   }
@@ -116,6 +118,7 @@ export default function TripSwitcher() {
     const result = await createTrip(trimmed, {
       coords: coords ?? undefined,
       tripType: tripType ?? undefined,
+      isRecurring,
     });
 
     if (!result) {
@@ -214,7 +217,7 @@ export default function TripSwitcher() {
                 currentTripId === trip.id ? styles.chipTextSelected : styles.chipText
               }
             >
-              {trip.name}
+              {trip.isRecurring ? `🔁 ${trip.name}` : trip.name}
             </Text>
           </Pressable>
         ))}
@@ -271,6 +274,19 @@ export default function TripSwitcher() {
                     );
                   })}
                 </View>
+
+                <Pressable
+                  style={styles.recurringRow}
+                  onPress={() => setIsRecurring((prev) => !prev)}
+                  testID="trip-recurring-toggle"
+                >
+                  <Text style={styles.recurringCheckbox}>
+                    {isRecurring ? '☑' : '☐'}
+                  </Text>
+                  <Text style={styles.recurringLabel}>
+                    🔁 Repeats daily — reset the checklist each morning
+                  </Text>
+                </Pressable>
               </>
             )}
 
@@ -431,6 +447,20 @@ const styles = StyleSheet.create({
   typeChipTextSelected: {
     color: colors.textOnGradient,
     fontWeight: '700',
+  },
+  recurringRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  recurringCheckbox: {
+    fontSize: 18,
+    color: colors.textPrimary,
+  },
+  recurringLabel: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.textPrimary,
   },
   locationRow: {
     borderWidth: 1,

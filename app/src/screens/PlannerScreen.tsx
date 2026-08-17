@@ -78,7 +78,7 @@ async function patchChecklistItem(
 }
 
 export default function PlannerScreen() {
-  const { currentTripId } = useTripContext();
+  const { currentTripId, maybeResetChecklist } = useTripContext();
 
   const [weather, setWeather] = useState<Weather | null>(null);
   const [weatherStatus, setWeatherStatus] = useState<WeatherStatus>('loading');
@@ -137,6 +137,12 @@ export default function PlannerScreen() {
     async (isCancelled: () => boolean) => {
       const tripQuery = currentTripId !== null ? `?tripId=${currentTripId}` : '';
 
+      // A recurring trip starts each day fresh — unchecking happens before the
+      // list is fetched, so the reset is already reflected in what loads.
+      if (currentTripId !== null) {
+        await maybeResetChecklist(currentTripId);
+      }
+
       async function loadChecklist() {
         try {
           const data = await apiRequest<ChecklistItem[]>(
@@ -174,7 +180,7 @@ export default function PlannerScreen() {
 
       await Promise.all([loadChecklist(), loadInventory()]);
     },
-    [currentTripId]
+    [currentTripId, maybeResetChecklist]
   );
 
   async function handleRefresh() {

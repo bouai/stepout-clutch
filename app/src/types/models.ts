@@ -31,6 +31,8 @@ export interface Trip {
   longitude: number | null;
   tripType: TripType | null;
   templateApplied: boolean;
+  isRecurring: boolean;
+  checklistResetOn: string | null;
   createdAt: string;
 }
 

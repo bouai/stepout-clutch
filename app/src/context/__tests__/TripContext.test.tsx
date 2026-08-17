@@ -20,8 +20,10 @@ function Probe() {
     createTrip,
     renameTrip,
     deleteTrip,
+    maybeResetChecklist,
   } = useTripContext();
   const [applied, setApplied] = useState('none');
+  const [resetResult, setResetResult] = useState('none');
 
   return (
     <>
@@ -29,6 +31,16 @@ function Probe() {
       <Text testID="current">{String(currentTripId)}</Text>
       <Text testID="names">{trips.map((t) => t.name).join(',')}</Text>
       <Text testID="applied">{applied}</Text>
+      <Text testID="reset-result">{resetResult}</Text>
+      <Pressable
+        testID="maybe-reset-1"
+        onPress={async () => {
+          const did = await maybeResetChecklist(1);
+          setResetResult(did ? 'reset' : 'skipped');
+        }}
+      >
+        <Text>maybe reset</Text>
+      </Pressable>
       <Pressable testID="select-1" onPress={() => selectTrip(1)}>
         <Text>select 1</Text>
       </Pressable>
@@ -246,5 +258,83 @@ describe('TripContext', () => {
       expect(view.getByTestId('names').props.children).toBe('Infosys Noida')
     );
     expect(view.getByTestId('applied').props.children).toBe('no-apply');
+  });
+
+  const today = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(
+      n.getDate()
+    ).padStart(2, '0')}`;
+  })();
+
+  const RECURRING = {
+    id: 1,
+    name: 'Commute',
+    latitude: null,
+    longitude: null,
+    tripType: 'commute',
+    templateApplied: true,
+    isRecurring: true,
+    checklistResetOn: '2000-01-01',
+    createdAt: 'x',
+  };
+
+  it('resets a recurring trip whose checklist is stale', async () => {
+    stubFetch([
+      { match: '/trips/1/reset-checklist', body: { resetCount: 2, checklistResetOn: today }, method: 'POST' },
+      { match: '/trips', body: [RECURRING], method: 'GET' },
+    ]);
+    const view = await renderProbe();
+    await waitFor(() =>
+      expect(view.getByTestId('names').props.children).toBe('Commute')
+    );
+
+    fireEvent.press(view.getByTestId('maybe-reset-1'));
+
+    await waitFor(() =>
+      expect(view.getByTestId('reset-result').props.children).toBe('reset')
+    );
+    const calls = (global.fetch as jest.Mock).mock.calls.map((c) => String(c[0]));
+    expect(calls.some((u) => u.includes(`/trips/1/reset-checklist`) && u.includes(today))).toBe(
+      true
+    );
+  });
+
+  it('does not reset again once already reset today', async () => {
+    stubFetch([
+      { match: '/trips/1/reset-checklist', body: { resetCount: 0, checklistResetOn: today }, method: 'POST' },
+      { match: '/trips', body: [{ ...RECURRING, checklistResetOn: today }], method: 'GET' },
+    ]);
+    const view = await renderProbe();
+    await waitFor(() =>
+      expect(view.getByTestId('names').props.children).toBe('Commute')
+    );
+
+    fireEvent.press(view.getByTestId('maybe-reset-1'));
+
+    await waitFor(() =>
+      expect(view.getByTestId('reset-result').props.children).toBe('skipped')
+    );
+    const calls = (global.fetch as jest.Mock).mock.calls.map((c) => String(c[0]));
+    expect(calls.some((u) => u.includes('reset-checklist'))).toBe(false);
+  });
+
+  it('does not reset a non-recurring trip', async () => {
+    stubFetch([
+      { match: '/trips/1/reset-checklist', body: {}, method: 'POST' },
+      { match: '/trips', body: [{ ...RECURRING, isRecurring: false }], method: 'GET' },
+    ]);
+    const view = await renderProbe();
+    await waitFor(() =>
+      expect(view.getByTestId('names').props.children).toBe('Commute')
+    );
+
+    fireEvent.press(view.getByTestId('maybe-reset-1'));
+
+    await waitFor(() =>
+      expect(view.getByTestId('reset-result').props.children).toBe('skipped')
+    );
+    const calls = (global.fetch as jest.Mock).mock.calls.map((c) => String(c[0]));
+    expect(calls.some((u) => u.includes('reset-checklist'))).toBe(false);
   });
 });
