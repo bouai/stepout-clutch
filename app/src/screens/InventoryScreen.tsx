@@ -13,6 +13,7 @@ import {
 
 import ListState, { type LoadStatus } from '../components/ListState';
 import ScreenContainer from '../components/ScreenContainer';
+import SwipeRow from '../components/SwipeRow';
 import TripSwitcher from '../components/TripSwitcher';
 import { useTripContext } from '../context/TripContext';
 import { useCachedResource, invalidateResource } from '../hooks/useCachedResource';
@@ -222,25 +223,23 @@ export default function InventoryScreen() {
         {status === 'ready' &&
           items.map((item) => (
             <View key={item.id} style={styles.row}>
-              <View style={styles.rowMain}>
-                <Pressable
-                  onPress={() => togglePacked(item)}
-                  testID={`checkbox-${item.id}`}
-                  hitSlop={8}
-                >
-                  <Text style={styles.checkbox}>{item.isPacked ? '☑' : '☐'}</Text>
-                </Pressable>
-                <Text style={item.isPacked ? styles.nameChecked : styles.name}>
-                  {item.name} ({item.quantity})
-                </Text>
-                <Pressable
-                  onPress={() => confirmDelete(item)}
-                  testID={`delete-${item.id}`}
-                  hitSlop={8}
-                >
-                  <Text style={styles.deleteButton}>Delete</Text>
-                </Pressable>
-              </View>
+              <SwipeRow
+                onDelete={() => confirmDelete(item)}
+                testID={`item-${item.id}`}
+              >
+                <View style={styles.rowMain}>
+                  <Pressable
+                    onPress={() => togglePacked(item)}
+                    testID={`checkbox-${item.id}`}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.checkbox}>{item.isPacked ? '☑' : '☐'}</Text>
+                  </Pressable>
+                  <Text style={item.isPacked ? styles.nameChecked : styles.name}>
+                    {item.name} ({item.quantity})
+                  </Text>
+                </View>
+              </SwipeRow>
               {rowErrors[item.id] && (
                 <Text style={styles.rowError} testID={`row-error-${item.id}`}>
                   {rowErrors[item.id]}

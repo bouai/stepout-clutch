@@ -20,6 +20,7 @@ import MapCanvas, {
 import ListState, { type LoadStatus } from '../components/ListState';
 import PlaceSearch, { type Place } from '../components/PlaceSearch';
 import ScreenContainer from '../components/ScreenContainer';
+import SwipeRow from '../components/SwipeRow';
 import TripSwitcher from '../components/TripSwitcher';
 import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
@@ -312,29 +313,27 @@ export default function TransitScreen() {
               keyExtractor={(item) => String(item.id)}
               renderItem={({ item }) => (
                 <View style={styles.destinationRow}>
-                  <View style={styles.destinationRowMain}>
-                    <Pressable
-                      style={styles.destinationLabel}
-                      onPress={() => selectDestination(item)}
-                    >
-                      <Text
-                        style={
-                          selected?.id === item.id
-                            ? styles.destinationSelected
-                            : undefined
-                        }
+                  <SwipeRow
+                    onDelete={() => confirmDelete(item)}
+                    testID={`destination-${item.id}`}
+                  >
+                    <View style={styles.destinationRowMain}>
+                      <Pressable
+                        style={styles.destinationLabel}
+                        onPress={() => selectDestination(item)}
                       >
-                        {item.label}
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => confirmDelete(item)}
-                      testID={`delete-${item.id}`}
-                      hitSlop={8}
-                    >
-                      <Text style={styles.deleteButton}>Delete</Text>
-                    </Pressable>
-                  </View>
+                        <Text
+                          style={
+                            selected?.id === item.id
+                              ? styles.destinationSelected
+                              : undefined
+                          }
+                        >
+                          {item.label}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </SwipeRow>
                   {rowErrors[item.id] && (
                     <Text style={styles.rowError} testID={`row-error-${item.id}`}>
                       {rowErrors[item.id]}

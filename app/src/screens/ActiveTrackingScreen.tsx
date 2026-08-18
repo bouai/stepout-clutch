@@ -21,6 +21,7 @@ import MapCanvas, {
 import ListState, { type LoadStatus } from '../components/ListState';
 import PlaceSearch, { type Place } from '../components/PlaceSearch';
 import ScreenContainer from '../components/ScreenContainer';
+import SwipeRow from '../components/SwipeRow';
 import TripSwitcher from '../components/TripSwitcher';
 import { apiRequest, describeError } from '../api';
 import { startGeofencing } from '../geofencing';
@@ -389,33 +390,31 @@ export default function ActiveTrackingScreen() {
         {listStatus === 'ready' &&
           triggers.map((trigger) => (
             <View key={trigger.id} style={styles.triggerRow}>
-              <View style={styles.triggerRowMain}>
-                <Pressable
-                  onPress={() => toggleActive(trigger)}
-                  testID={`toggle-${trigger.id}`}
-                  hitSlop={8}
-                >
-                  <Text style={styles.checkbox}>
-                    {trigger.isActive ? '☑' : '☐'}
+              <SwipeRow
+                onDelete={() => confirmDelete(trigger)}
+                testID={`trigger-${trigger.id}`}
+              >
+                <View style={styles.triggerRowMain}>
+                  <Pressable
+                    onPress={() => toggleActive(trigger)}
+                    testID={`toggle-${trigger.id}`}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.checkbox}>
+                      {trigger.isActive ? '☑' : '☐'}
+                    </Text>
+                  </Pressable>
+                  <Text
+                    style={[
+                      styles.triggerLabel,
+                      !trigger.isActive && styles.triggerInactive,
+                    ]}
+                  >
+                    {trigger.label} · {trigger.triggerType} · {trigger.radiusMeters}m ·{' '}
+                    {trigger.isActive ? 'active' : 'inactive'}
                   </Text>
-                </Pressable>
-                <Text
-                  style={[
-                    styles.triggerLabel,
-                    !trigger.isActive && styles.triggerInactive,
-                  ]}
-                >
-                  {trigger.label} · {trigger.triggerType} · {trigger.radiusMeters}m ·{' '}
-                  {trigger.isActive ? 'active' : 'inactive'}
-                </Text>
-                <Pressable
-                  onPress={() => confirmDelete(trigger)}
-                  testID={`delete-${trigger.id}`}
-                  hitSlop={8}
-                >
-                  <Text style={styles.deleteButton}>Delete</Text>
-                </Pressable>
-              </View>
+                </View>
+              </SwipeRow>
               {rowErrors[trigger.id] && (
                 <Text style={styles.rowError} testID={`row-error-${trigger.id}`}>
                   {rowErrors[trigger.id]}

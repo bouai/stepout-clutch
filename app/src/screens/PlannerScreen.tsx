@@ -15,6 +15,7 @@ import {
 
 import ListState, { type LoadStatus } from '../components/ListState';
 import ScreenContainer from '../components/ScreenContainer';
+import SwipeRow from '../components/SwipeRow';
 import TripSwitcher from '../components/TripSwitcher';
 import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
@@ -384,6 +385,10 @@ export default function PlannerScreen() {
           {checklistStatus === 'ready' &&
             checklistItems.map((item) => (
             <View key={item.id} style={styles.checklistRow}>
+              <SwipeRow
+                onDelete={() => confirmDelete(item)}
+                testID={`item-${item.id}`}
+              >
               <View style={styles.checklistRowMain}>
                 <Pressable
                   onPress={() => toggleChecked(item)}
@@ -441,15 +446,8 @@ export default function PlannerScreen() {
                       </Text>
                     );
                   })()}
-
-                <Pressable
-                  onPress={() => confirmDelete(item)}
-                  testID={`delete-${item.id}`}
-                  hitSlop={8}
-                >
-                  <Text style={styles.deleteButton}>Delete</Text>
-                </Pressable>
               </View>
+              </SwipeRow>
               {rowErrors[item.id] && (
                 <Text style={styles.rowError} testID={`row-error-${item.id}`}>
                   {rowErrors[item.id]}
