@@ -9,6 +9,8 @@ interface ProgressRingProps {
   total: number;
   size?: number;
   strokeWidth?: number;
+  /** Overrides the centre text (e.g. "67%" for a combined readiness ring). */
+  centerLabel?: string;
   testID: string;
 }
 
@@ -26,6 +28,7 @@ export default function ProgressRing({
   total,
   size = 76,
   strokeWidth = 7,
+  centerLabel,
   testID,
 }: ProgressRingProps) {
   const fraction = total > 0 ? Math.min(1, Math.max(0, completed / total)) : 0;
@@ -61,8 +64,11 @@ export default function ProgressRing({
           />
         </Svg>
         <View style={[StyleSheet.absoluteFill, styles.centerContent]}>
-          <Text style={styles.fraction} testID={`${testID}-fraction`}>
-            {completed}/{total}
+          <Text
+            style={centerLabel ? styles.percent : styles.fraction}
+            testID={`${testID}-fraction`}
+          >
+            {centerLabel ?? `${completed}/${total}`}
           </Text>
         </View>
       </View>
@@ -83,6 +89,11 @@ const styles = StyleSheet.create({
   fraction: {
     fontSize: 15,
     fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  percent: {
+    fontSize: 22,
+    fontWeight: '800',
     color: colors.textPrimary,
   },
   label: {

@@ -287,6 +287,12 @@ export default function HomeScreen() {
   const unpackedItems = inventoryItems.filter((item) => !item.isPacked);
   const showReadiness = currentTripId !== null && inventoryItems.length > 0;
 
+  // One readiness figure across checklist + packing — "you're ready when your
+  // trip is ready", rather than two disconnected counters.
+  const totalItems = checklistItems.length + inventoryItems.length;
+  const doneItems = checkedCount + packedCount;
+  const readyPercent = totalItems > 0 ? Math.round((doneItems / totalItems) * 100) : 0;
+
   return (
     <ScreenContainer
       title="StepOut"
@@ -353,53 +359,50 @@ export default function HomeScreen() {
         )}
       </View>
 
-      <View style={styles.ringsRow}>
+      <View style={styles.readyCard} testID="home-ready">
         {checklistStatus === 'loading' || inventoryStatus === 'loading' ? (
-          <View style={styles.ringCard}>
-            <ActivityIndicator />
-          </View>
+          <ActivityIndicator />
+        ) : totalItems === 0 ? (
+          <Text style={styles.readyEmpty} testID="home-ready-empty">
+            Add a trip to see how ready you are.
+          </Text>
         ) : (
           <>
-            <View style={styles.ringCard}>
-              <ProgressRing
-                label="Checklist"
-                completed={checkedCount}
-                total={checklistItems.length}
-                testID="home-checklist-ring"
-              />
-            </View>
-            <View style={styles.ringCard}>
-              <ProgressRing
-                label="Packing"
-                completed={packedCount}
-                total={inventoryItems.length}
-                testID="home-packing-ring"
-              />
+            <ProgressRing
+              label="Ready"
+              completed={doneItems}
+              total={totalItems}
+              size={104}
+              strokeWidth={9}
+              centerLabel={`${readyPercent}%`}
+              testID="home-ready-ring"
+            />
+            <View style={styles.readySubs}>
+              <Text style={styles.readyHeadline} testID="home-ready-headline">
+                {readyPercent === 100
+                  ? "You're all set."
+                  : `You're ${readyPercent}% ready`}
+              </Text>
+              <Text style={styles.readySubStat} testID="home-checklist-count">
+                ✓ Checklist {checkedCount}/{checklistItems.length}
+              </Text>
+              <Text style={styles.readySubStat} testID="home-packing-count">
+                🎒 Packing {packedCount}/{inventoryItems.length}
+              </Text>
             </View>
           </>
         )}
       </View>
 
-      {showReadiness && (
-        <>
-          <Text style={styles.sectionLabel}>READY TO GO?</Text>
-          <View style={styles.rowCard} testID="home-readiness">
-            {unpackedItems.length === 0 ? (
-              <Text style={styles.readinessDone} testID="home-readiness-done">
-                ✅ All packed — you're good to go.
-              </Text>
-            ) : (
-              <>
-                <Text style={styles.readinessTitle} testID="home-readiness-summary">
-                  {packedCount} of {inventoryItems.length} packed — still need:
-                </Text>
-                <Text style={styles.readinessItems} testID="home-readiness-items">
-                  {unpackedItems.map((item) => item.name).join(', ')}
-                </Text>
-              </>
-            )}
-          </View>
-        </>
+      {showReadiness && unpackedItems.length > 0 && (
+        <View style={styles.rowCard} testID="home-readiness">
+          <Text style={styles.readinessTitle} testID="home-readiness-summary">
+            Still to pack ({unpackedItems.length}):
+          </Text>
+          <Text style={styles.readinessItems} testID="home-readiness-items">
+            {unpackedItems.map((item) => item.name).join(', ')}
+          </Text>
+        </View>
       )}
 
       <Text style={styles.sectionLabel}>UP NEXT</Text>
@@ -525,18 +528,36 @@ const styles = StyleSheet.create({
     color: colors.textOnGradientMuted,
     marginTop: 4,
   },
-  ringsRow: {
+  readyCard: {
     flexDirection: 'row',
-    gap: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  ringCard: {
-    flex: 1,
+    alignItems: 'center',
+    gap: spacing.lg,
     backgroundColor: colors.card,
     borderRadius: radius.card,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    minHeight: 132,
+    justifyContent: 'center',
     ...cardShadow,
+  },
+  readySubs: {
+    flex: 1,
+    gap: 6,
+  },
+  readyHeadline: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    marginBottom: 2,
+  },
+  readySubStat: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
+  readyEmpty: {
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
   // Caps label sitting on the gradient above its card, not a title inside it.
   sectionLabel: {
