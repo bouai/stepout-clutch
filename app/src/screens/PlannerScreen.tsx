@@ -26,7 +26,7 @@ import type {
   InventoryItem,
   Weather,
 } from '../types/models';
-import { cardShadow, colors, radius, spacing } from '../theme';
+import { glassCard, colors, radius, spacing } from '../theme';
 
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
@@ -352,7 +352,7 @@ export default function PlannerScreen() {
           {weatherStatus === 'loading' && <ActivityIndicator />}
           {weatherStatus === 'ready' && weather && (
             <>
-              <Text testID="weather-summary">
+              <Text style={styles.weatherText} testID="weather-summary">
                 {Math.round(weather.temperatureCelsius)}°C · {weather.condition}
               </Text>
               {usedDefaultLocation && (
@@ -361,7 +361,9 @@ export default function PlannerScreen() {
             </>
           )}
           {weatherStatus === 'unavailable' && (
-            <Text testID="weather-unavailable">Weather unavailable</Text>
+            <Text style={styles.weatherText} testID="weather-unavailable">
+              Weather unavailable
+            </Text>
           )}
         </View>
       </View>
@@ -415,9 +417,7 @@ export default function PlannerScreen() {
                     style={styles.labelPressable}
                     onPress={() => beginLabelEdit(item)}
                   >
-                    <Text
-                      style={item.isChecked ? styles.labelChecked : undefined}
-                    >
+                    <Text style={item.isChecked ? styles.labelChecked : styles.label}>
                       {item.label}
                     </Text>
                   </Pressable>
@@ -461,7 +461,7 @@ export default function PlannerScreen() {
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.sectionTitle}>Add Item</Text>
+            <Text style={styles.modalTitle}>Add Item</Text>
 
             <TextInput
               style={styles.modalInput}
@@ -532,17 +532,19 @@ export default function PlannerScreen() {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
+    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.md,
-    ...cardShadow,
   },
   checklistCard: {},
   weatherSection: {},
+  weatherText: {
+    color: colors.textOnGradient,
+    fontWeight: '600',
+  },
   note: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: colors.textOnGradientMuted,
     marginTop: 4,
   },
   checklistHeader: {
@@ -551,9 +553,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  // Sits on the glass checklist card.
   sectionTitle: {
     fontSize: 16,
+    fontWeight: '700',
+    color: colors.textOnGradient,
+  },
+  // Sits on the opaque white modal.
+  modalTitle: {
+    fontSize: 16,
     fontWeight: '600',
+    color: colors.textPrimary,
   },
   addButton: {
     color: colors.accent,
@@ -574,29 +584,34 @@ const styles = StyleSheet.create({
   },
   checkbox: {
     fontSize: 18,
+    color: colors.textOnGradient,
   },
   labelPressable: {
     flex: 1,
   },
+  label: {
+    color: colors.textOnGradient,
+  },
   labelInput: {
     flex: 1,
+    color: colors.textOnGradient,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.textSecondary,
+    borderColor: colors.cardTranslucentBorder,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
   labelChecked: {
     textDecorationLine: 'line-through',
-    color: '#888',
+    color: colors.textOnGradientMuted,
   },
   todayTag: {
     fontSize: 12,
-    fontWeight: '600',
-    color: colors.accent,
+    fontWeight: '700',
+    color: colors.textOnGradient,
   },
   inventoryBadge: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: colors.textOnGradientMuted,
   },
   deleteButton: {
     color: colors.danger,

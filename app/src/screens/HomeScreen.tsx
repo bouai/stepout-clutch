@@ -18,7 +18,7 @@ import type {
   SavedDestination,
   Weather,
 } from '../types/models';
-import { cardShadow, colors, radius, spacing } from '../theme';
+import { glassCard, colors, spacing } from '../theme';
 import { formatRelativeTime } from '../utils/time';
 
 const DEFAULT_LATITUDE = 28.6139;
@@ -375,6 +375,7 @@ export default function HomeScreen() {
               size={104}
               strokeWidth={9}
               centerLabel={`${readyPercent}%`}
+              onGlass
               testID="home-ready-ring"
             />
             <View style={styles.readySubs}>
@@ -482,10 +483,7 @@ const styles = StyleSheet.create({
   // Translucent so the coral-to-purple gradient reads through, per the mockup;
   // the previous opaque white cards flattened the whole screen.
   weatherCard: {
-    backgroundColor: colors.cardTranslucent,
-    borderWidth: 1,
-    borderColor: colors.cardTranslucentBorder,
-    borderRadius: radius.card,
+    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
@@ -529,16 +527,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   readyCard: {
+    ...glassCard,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.lg,
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
     padding: spacing.md,
     marginBottom: spacing.lg,
     minHeight: 132,
     justifyContent: 'center',
-    ...cardShadow,
   },
   readySubs: {
     flex: 1,
@@ -547,16 +543,16 @@ const styles = StyleSheet.create({
   readyHeadline: {
     fontSize: 18,
     fontWeight: '800',
-    color: colors.textPrimary,
+    color: colors.textOnGradient,
     marginBottom: 2,
   },
   readySubStat: {
     fontSize: 14,
-    color: colors.textSecondary,
+    color: colors.textOnGradientMuted,
     fontWeight: '600',
   },
   readyEmpty: {
-    color: colors.textSecondary,
+    color: colors.textOnGradientMuted,
     textAlign: 'center',
   },
   // Caps label sitting on the gradient above its card, not a title inside it.
@@ -568,11 +564,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   rowCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
+    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.lg,
-    ...cardShadow,
   },
   rowContent: {
     flexDirection: 'row',
@@ -587,33 +581,33 @@ const styles = StyleSheet.create({
   },
   rowChevron: {
     fontSize: 24,
-    color: colors.textSecondary,
+    color: colors.textOnGradientMuted,
     fontWeight: '400',
   },
   rowTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.textPrimary,
+    color: colors.textOnGradient,
   },
   rowSubtitle: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: colors.textOnGradientMuted,
     marginTop: 2,
   },
   rowMuted: {
-    color: colors.textSecondary,
+    color: colors.textOnGradientMuted,
   },
   readinessTitle: {
-    color: colors.textPrimary,
+    color: colors.textOnGradient,
     fontWeight: '700',
     marginBottom: 4,
   },
   readinessItems: {
-    color: colors.accent,
-    fontWeight: '600',
+    color: colors.textOnGradient,
+    fontWeight: '700',
   },
   readinessDone: {
-    color: colors.accentDark,
+    color: colors.textOnGradient,
     fontWeight: '700',
   },
 });

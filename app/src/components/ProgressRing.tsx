@@ -11,6 +11,8 @@ interface ProgressRingProps {
   strokeWidth?: number;
   /** Overrides the centre text (e.g. "67%" for a combined readiness ring). */
   centerLabel?: string;
+  /** Renders the text and unfilled track light, for use on a glass card. */
+  onGlass?: boolean;
   testID: string;
 }
 
@@ -29,12 +31,14 @@ export default function ProgressRing({
   size = 76,
   strokeWidth = 7,
   centerLabel,
+  onGlass = false,
   testID,
 }: ProgressRingProps) {
   const fraction = total > 0 ? Math.min(1, Math.max(0, completed / total)) : 0;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const center = size / 2;
+  const textColor = onGlass ? colors.textOnGradient : colors.textPrimary;
 
   return (
     <View style={styles.wrapper} testID={testID}>
@@ -44,7 +48,7 @@ export default function ProgressRing({
             cx={center}
             cy={center}
             r={radius}
-            stroke={colors.ringTrack}
+            stroke={onGlass ? colors.ringTrackOnGlass : colors.ringTrack}
             strokeWidth={strokeWidth}
             fill="none"
           />
@@ -65,14 +69,14 @@ export default function ProgressRing({
         </Svg>
         <View style={[StyleSheet.absoluteFill, styles.centerContent]}>
           <Text
-            style={centerLabel ? styles.percent : styles.fraction}
+            style={[centerLabel ? styles.percent : styles.fraction, { color: textColor }]}
             testID={`${testID}-fraction`}
           >
             {centerLabel ?? `${completed}/${total}`}
           </Text>
         </View>
       </View>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: textColor }]}>{label}</Text>
     </View>
   );
 }

@@ -181,11 +181,14 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     borderWidth: 1,
-    borderColor: colors.textSecondary,
+    borderColor: colors.cardTranslucentBorder,
     borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
     color: colors.textPrimary,
+    // A solid frosted field so the dark input text reads whether this sits on
+    // the gradient (Transit / Tracking) or inside a white modal (trip setup).
+    backgroundColor: 'rgba(255,255,255,0.92)',
   },
   spinner: {
     position: 'absolute',

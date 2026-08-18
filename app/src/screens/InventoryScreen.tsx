@@ -19,7 +19,7 @@ import { useTripContext } from '../context/TripContext';
 import { useCachedResource, invalidateResource } from '../hooks/useCachedResource';
 import { apiRequest, describeError } from '../api';
 import type { InventoryCategory, InventoryItem } from '../types/models';
-import { cardShadow, colors, radius, spacing, typography } from '../theme';
+import { glassCard, colors, radius, spacing, typography } from '../theme';
 
 const INVENTORY_CATEGORIES: InventoryCategory[] = [
   'electronics',
@@ -316,16 +316,16 @@ const styles = StyleSheet.create({
     ...typography.heading,
   },
   card: {
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
+    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.md,
-    ...cardShadow,
   },
   listCard: {},
+  // Used only inside the opaque white modal, so it keeps dark text.
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
+    color: colors.textPrimary,
   },
   addButton: {
     color: colors.accent,
@@ -343,14 +343,16 @@ const styles = StyleSheet.create({
   },
   checkbox: {
     fontSize: 18,
+    color: colors.textOnGradient,
   },
   name: {
     flex: 1,
+    color: colors.textOnGradient,
   },
   nameChecked: {
     flex: 1,
     textDecorationLine: 'line-through',
-    color: '#888',
+    color: colors.textOnGradientMuted,
   },
   deleteButton: {
     color: colors.danger,

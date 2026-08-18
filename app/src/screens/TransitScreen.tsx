@@ -26,7 +26,7 @@ import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
 import { useCachedResource } from '../hooks/useCachedResource';
 import type { Distance, SavedDestination } from '../types/models';
-import { cardShadow, colors, radius, spacing } from '../theme';
+import { cardShadow, glassCard, colors, radius, spacing } from '../theme';
 
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
@@ -323,11 +323,10 @@ export default function TransitScreen() {
                         onPress={() => selectDestination(item)}
                       >
                         <Text
-                          style={
-                            selected?.id === item.id
-                              ? styles.destinationSelected
-                              : undefined
-                          }
+                          style={[
+                            styles.destinationText,
+                            selected?.id === item.id && styles.destinationSelected,
+                          ]}
                         >
                           {item.label}
                         </Text>
@@ -350,12 +349,14 @@ export default function TransitScreen() {
         <View style={[styles.card, styles.distanceSection]}>
           {distanceStatus === 'loading' && <ActivityIndicator />}
           {distanceStatus === 'ready' && distance && (
-            <Text testID="distance-summary">
+            <Text style={styles.distanceText} testID="distance-summary">
               {distance.distanceKm} km · {distance.bearingDegrees}°
             </Text>
           )}
           {distanceStatus === 'error' && (
-            <Text testID="distance-error">Could not calculate distance</Text>
+            <Text style={styles.distanceText} testID="distance-error">
+              Could not calculate distance
+            </Text>
           )}
         </View>
       )}
@@ -421,11 +422,9 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   card: {
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
+    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.md,
-    ...cardShadow,
   },
   mapCard: {
     borderRadius: radius.card,
@@ -464,8 +463,15 @@ const styles = StyleSheet.create({
   destinationLabel: {
     flex: 1,
   },
+  destinationText: {
+    color: colors.textOnGradient,
+  },
   destinationSelected: {
     fontWeight: '700',
+  },
+  distanceText: {
+    color: colors.textOnGradient,
+    fontWeight: '600',
   },
   deleteButton: {
     color: colors.danger,

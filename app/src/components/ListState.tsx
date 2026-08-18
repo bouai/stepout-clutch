@@ -64,7 +64,9 @@ export default function ListState({
 
 const styles = StyleSheet.create({
   empty: {
-    color: colors.textSecondary,
+    // These states render inside the (now translucent) glass cards, so the
+    // copy needs to read as light-on-gradient rather than dark-on-white.
+    color: colors.textOnGradientMuted,
   },
   errorWrapper: {
     gap: spacing.sm,

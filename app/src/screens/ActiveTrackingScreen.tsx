@@ -27,7 +27,7 @@ import { apiRequest, describeError } from '../api';
 import { startGeofencing } from '../geofencing';
 import { useTripContext } from '../context/TripContext';
 import type { GeofenceTrigger, GeofenceTriggerType } from '../types/models';
-import { cardShadow, colors, radius, spacing } from '../theme';
+import { cardShadow, glassCard, colors, radius, spacing } from '../theme';
 
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
@@ -526,11 +526,9 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   card: {
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
+    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.md,
-    ...cardShadow,
   },
   mapCard: {
     borderRadius: radius.card,
@@ -571,12 +569,14 @@ const styles = StyleSheet.create({
   },
   checkbox: {
     fontSize: 18,
+    color: colors.textOnGradient,
   },
   triggerLabel: {
     flex: 1,
+    color: colors.textOnGradient,
   },
   triggerInactive: {
-    color: colors.textSecondary,
+    color: colors.textOnGradientMuted,
   },
   deleteButton: {
     color: colors.danger,
