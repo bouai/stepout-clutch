@@ -2,7 +2,7 @@
 
 Living progress-context doc. Update this whenever a phase completes or scope changes — this is the file a fresh session should read first to know where things stand.
 
-_Updated: 2026-08-17 — Phase 10 (commute intelligence, coordinate polish, magic-link auth) code-complete on `claude/round-5-commute-intel`._
+_Updated: 2026-08-18 — Phase 11 (caching, drop-a-pin, unified readiness, swipe-to-delete, full glass reskin) code-complete on `claude/round-6-cache-and-pin` ([PR #20](https://github.com/bouai/stepout-clutch/pull/20))._
 
 ## Status legend
 `[x]` done · `[~]` in progress · `[ ]` not started
@@ -151,9 +151,25 @@ Branch `claude/round-5-commute-intel`. Three items, each web-verified in the bro
 
 **Gates:** 165 pytest (from 140), 119 frontend tests (from 105), `tsc --noEmit` clean.
 
+## Phase 11 — Caching, drop-a-pin, unified readiness, swipe-to-delete, glass reskin `[x]` code complete (2026-08-18), device pass pending
+
+Branch `claude/round-6-cache-and-pin` ([PR #20](https://github.com/bouai/stepout-clutch/pull/20)). Acts on the second device-test critique. All JS/backend — a Metro reload, not a native rebuild.
+
+**Instant tab switches (caching).** New `useCachedResource` hook (stale-while-revalidate): the last-loaded list shows immediately on re-focus while a fresh copy loads behind it, so Plan / Pack / Go no longer flash empty and re-spin on every switch. Optimistic `mutate` for toggles/deletes; cache cleared on sign-out (no cross-account leak) and between tests.
+
+**Drop-a-pin locations.** Proved OSM (Photon *and* Nominatim) genuinely can't find Noida-office addresses by name (control "Infosys Bangalore" works — it's an OSM data gap, not our integration). So a new `MapPicker` drops a pin and `GET /places/reverse` names it from the nearest mapped feature. Search-by-name stays for places OSM knows.
+
+**Unified readiness.** Home's two rings + readiness card collapsed into one "You're X% ready" figure over the combined checklist+packing count.
+
+**Swipe-to-delete.** The always-visible red "Delete" link on every list row (admin-table feel) replaced with swipe-left-to-reveal, built on `PanResponder`/`Animated` — no gesture-handler, no native module. The delete action mounts only while swiping so nothing bleeds through the translucent cards.
+
+**Full glass reskin.** Extended the frosted-glass treatment (previously only Home's weather card) across every screen: a shared `glassCard` token, light-on-gradient text, checkboxes, and ring. Modals and the trip-setup form stay opaque white with dark text.
+
+**Gates:** 167 pytest (from 165), 119 frontend tests, `tsc --noEmit` clean. Web-verified in the Expo harness (glass surfaces + white text confirmed via computed styles; swipe reveal confirmed).
+
 ## Next up
 
-- **Device pass** on Phase 9 + 10 (Smart Setup, commute intelligence, auth). All JS/backend — a Metro reload, not a rebuild — except confirm nothing regressed natively. Background geofencing's new exit bookend and the unpacked-items notification can only be seen on hardware.
+- **Device pass** on Phase 9 + 10 + 11 (Smart Setup, commute intelligence, auth, caching, drop-a-pin, swipe, glass). Mostly a Metro reload; confirm nothing regressed natively. Background geofencing's exit bookend and the unpacked-items notification can only be seen on hardware; the swipe gesture *feel* (open threshold, scroll-vs-swipe arbitration) needs a real thumb.
 - **Deploy** (still deferred). `server/render.yaml` is ready and now carries the `EMAIL_SENDER` hook; deploying unblocks off-LAN use and real emailed magic links.
 
 ## Known risks

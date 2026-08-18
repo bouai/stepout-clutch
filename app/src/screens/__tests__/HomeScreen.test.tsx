@@ -71,7 +71,7 @@ describe('HomeScreen', () => {
     expect(view.getByText('5.1 km away')).toBeTruthy();
   });
 
-  it('renders progress rings as fractions, matching the mockup', async () => {
+  it('shows one combined readiness figure with the sub-counts', async () => {
     stubFetch(
       baseRoutes({
         checklist: [
@@ -87,13 +87,15 @@ describe('HomeScreen', () => {
     );
     const view = await renderWithProviders(<HomeScreen />);
 
+    // 2 of 5 items done across both lists → 40%.
     await waitFor(() =>
-      expect(view.getByTestId('home-checklist-ring-fraction')).toBeTruthy()
+      expect(view.getByTestId('home-ready-ring-fraction')).toBeTruthy()
     );
-    expect(view.getByTestId('home-checklist-ring-fraction').props.children.join('')).toBe(
+    expect(view.getByTestId('home-ready-ring-fraction').props.children).toBe('40%');
+    expect(view.getByTestId('home-checklist-count').props.children.join('')).toContain(
       '1/3'
     );
-    expect(view.getByTestId('home-packing-ring-fraction').props.children.join('')).toBe(
+    expect(view.getByTestId('home-packing-count').props.children.join('')).toContain(
       '1/2'
     );
   });
@@ -144,7 +146,7 @@ describe('HomeScreen', () => {
     ).toContain('Entered Shinjuku');
   });
 
-  it('renders progress rings from checklist and packing data', async () => {
+  it('renders the readiness ring from checklist and packing data', async () => {
     stubFetch(
       baseRoutes({
         checklist: [
@@ -158,10 +160,9 @@ describe('HomeScreen', () => {
     );
     const view = await renderWithProviders(<HomeScreen />);
 
-    await waitFor(() =>
-      expect(view.getByTestId('home-checklist-ring')).toBeTruthy()
-    );
-    expect(view.getByTestId('home-packing-ring')).toBeTruthy();
+    await waitFor(() => expect(view.getByTestId('home-ready')).toBeTruthy());
+    // 2 of 3 done → 67%.
+    expect(view.getByTestId('home-ready-ring-fraction').props.children).toBe('67%');
   });
 
   it('resolves device location exactly once per load', async () => {

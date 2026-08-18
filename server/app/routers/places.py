@@ -20,6 +20,9 @@ from app import schemas
 router = APIRouter(prefix="/places", tags=["places"])
 
 PHOTON_URL = os.getenv("PHOTON_URL", "https://photon.komoot.io/api/")
+PHOTON_REVERSE_URL = os.getenv(
+    "PHOTON_REVERSE_URL", "https://photon.komoot.io/reverse"
+)
 USER_AGENT = os.getenv("PLACES_USER_AGENT", "StepOut/1.0 (personal trip planner)")
 REQUEST_TIMEOUT_SECONDS = 8.0
 
@@ -49,6 +52,45 @@ def search_places(
 ):
     results = _search_cached(q.strip(), limit, lat, lon)
     return results
+
+
+@router.get("/reverse", response_model=schemas.Place)
+def reverse_geocode(
+    lat: float = Query(description="Latitude of the dropped pin"),
+    lon: float = Query(description="Longitude of the dropped pin"),
+):
+    """Name a coordinate the user dropped a pin on.
+
+    Business POIs are missing from OSM in many places, but the surrounding
+    *area* (a sector, road or neighbourhood) usually is — so a pin dropped on an
+    unmapped office still resolves to something readable like "Sector 62,
+    Noida", far better than showing raw coordinates.
+    """
+    return _reverse_cached(round(lat, 5), round(lon, 5))
+
+
+@lru_cache(maxsize=512)
+def _reverse_cached(lat: float, lon: float) -> schemas.Place:
+    try:
+        response = httpx.get(
+            PHOTON_REVERSE_URL,
+            params={"lat": lat, "lon": lon},
+            headers={"User-Agent": USER_AGENT},
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except httpx.HTTPError:
+        payload = {}
+
+    features = payload.get("features") or []
+    if features:
+        name, context = _format_label(features[0].get("properties") or {})
+    else:
+        # A pin in the middle of nowhere still needs a usable label.
+        name, context = "Dropped pin", ""
+
+    return schemas.Place(name=name, context=context, latitude=lat, longitude=lon)
 
 
 @lru_cache(maxsize=512)

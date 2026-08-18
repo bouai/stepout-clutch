@@ -127,4 +127,11 @@ global.fetch = jest.fn(() =>
 beforeEach(() => {
   jest.clearAllMocks();
   global.fetch.mockRejectedValue(new Error('fetch was not stubbed for this test'));
+  // The resource cache is module-level and would otherwise leak one test's data
+  // into the next; each test starts from an empty cache.
+  try {
+    require('./src/hooks/useCachedResource').clearResourceCache();
+  } catch {
+    // Hook not loaded in this suite.
+  }
 });

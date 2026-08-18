@@ -20,11 +20,13 @@ import MapCanvas, {
 import ListState, { type LoadStatus } from '../components/ListState';
 import PlaceSearch, { type Place } from '../components/PlaceSearch';
 import ScreenContainer from '../components/ScreenContainer';
+import SwipeRow from '../components/SwipeRow';
 import TripSwitcher from '../components/TripSwitcher';
 import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
+import { useCachedResource } from '../hooks/useCachedResource';
 import type { Distance, SavedDestination } from '../types/models';
-import { cardShadow, colors, radius, spacing } from '../theme';
+import { cardShadow, glassCard, colors, radius, spacing } from '../theme';
 
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
@@ -69,9 +71,19 @@ export default function TransitScreen() {
   } | null>(null);
   const [usedDefaultLocation, setUsedDefaultLocation] = useState(false);
 
-  const [destinations, setDestinations] = useState<SavedDestination[]>([]);
-  const [listStatus, setListStatus] = useState<LoadStatus>('loading');
-  const [listError, setListError] = useState<string | null>(null);
+  const {
+    data: destinationsData,
+    status: fetchStatus,
+    error: listError,
+    refetch: refetchDestinations,
+    mutate: mutateDestinations,
+  } = useCachedResource<SavedDestination[]>(
+    `destinations:${currentTripId ?? 'all'}`,
+    currentTripId !== null
+      ? `/saved-destinations?tripId=${currentTripId}`
+      : '/saved-destinations'
+  );
+  const destinations = destinationsData ?? [];
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
 
   const [selected, setSelected] = useState<SavedDestination | null>(null);
@@ -101,40 +113,18 @@ export default function TransitScreen() {
     };
   }, []);
 
-  const loadDestinations = useCallback(
-    async (isCancelled: () => boolean) => {
-      try {
-        const data = await apiRequest<SavedDestination[]>(
-          '/saved-destinations',
-          { query: { tripId: currentTripId } }
-        );
-        if (!isCancelled()) {
-          setDestinations(data);
-          setListError(null);
-          setListStatus(data.length === 0 ? 'empty' : 'ready');
-        }
-      } catch (error) {
-        if (!isCancelled()) {
-          setListError(describeError(error));
-          setListStatus('error');
-        }
-      }
-    },
-    [currentTripId]
-  );
-
-  function retryDestinations() {
-    setListStatus('loading');
-    loadDestinations(() => false);
-  }
+  const listStatus: LoadStatus =
+    fetchStatus === 'loading'
+      ? 'loading'
+      : fetchStatus === 'error'
+        ? 'error'
+        : destinations.length === 0
+          ? 'empty'
+          : 'ready';
 
   useEffect(() => {
-    let cancelled = false;
-    loadDestinations(() => cancelled);
-    return () => {
-      cancelled = true;
-    };
-  }, [loadDestinations]);
+    refetchDestinations();
+  }, [refetchDestinations]);
 
   async function selectDestination(destination: SavedDestination) {
     setSelected(destination);
@@ -193,8 +183,7 @@ export default function TransitScreen() {
           ...(currentTripId !== null ? { tripId: currentTripId } : {}),
         },
       });
-      setDestinations((prev) => [...prev, created]);
-      setListStatus('ready');
+      mutateDestinations((prev) => [...(prev ?? []), created]);
       closeCreateModal();
     } catch (error) {
       setCreateError(describeError(error));
@@ -227,7 +216,7 @@ export default function TransitScreen() {
       delete next[destination.id];
       return next;
     });
-    setDestinations((prev) => prev.filter((d) => d.id !== destination.id));
+    mutateDestinations((prev) => (prev ?? []).filter((d) => d.id !== destination.id));
     if (selected?.id === destination.id) {
       setSelected(null);
       setDistance(null);
@@ -238,10 +227,9 @@ export default function TransitScreen() {
       await apiRequest<void>(`/saved-destinations/${destination.id}`, {
         method: 'DELETE',
       });
-      if (destinations.length === 1) setListStatus('empty');
     } catch {
-      setDestinations((prev) => {
-        const next = [...prev];
+      mutateDestinations((prev) => {
+        const next = [...(prev ?? [])];
         next.splice(index, 0, destination);
         return next;
       });
@@ -316,7 +304,7 @@ export default function TransitScreen() {
             status={listStatus}
             emptyMessage="No saved destinations yet"
             errorMessage={listError ?? undefined}
-            onRetry={retryDestinations}
+            onRetry={refetchDestinations}
             testIDPrefix="destinations"
           />
           {listStatus === 'ready' && destinations.length > 0 && (
@@ -325,29 +313,26 @@ export default function TransitScreen() {
               keyExtractor={(item) => String(item.id)}
               renderItem={({ item }) => (
                 <View style={styles.destinationRow}>
-                  <View style={styles.destinationRowMain}>
-                    <Pressable
-                      style={styles.destinationLabel}
-                      onPress={() => selectDestination(item)}
-                    >
-                      <Text
-                        style={
-                          selected?.id === item.id
-                            ? styles.destinationSelected
-                            : undefined
-                        }
+                  <SwipeRow
+                    onDelete={() => confirmDelete(item)}
+                    testID={`destination-${item.id}`}
+                  >
+                    <View style={styles.destinationRowMain}>
+                      <Pressable
+                        style={styles.destinationLabel}
+                        onPress={() => selectDestination(item)}
                       >
-                        {item.label}
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={() => confirmDelete(item)}
-                      testID={`delete-${item.id}`}
-                      hitSlop={8}
-                    >
-                      <Text style={styles.deleteButton}>Delete</Text>
-                    </Pressable>
-                  </View>
+                        <Text
+                          style={[
+                            styles.destinationText,
+                            selected?.id === item.id && styles.destinationSelected,
+                          ]}
+                        >
+                          {item.label}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </SwipeRow>
                   {rowErrors[item.id] && (
                     <Text style={styles.rowError} testID={`row-error-${item.id}`}>
                       {rowErrors[item.id]}
@@ -364,12 +349,14 @@ export default function TransitScreen() {
         <View style={[styles.card, styles.distanceSection]}>
           {distanceStatus === 'loading' && <ActivityIndicator />}
           {distanceStatus === 'ready' && distance && (
-            <Text testID="distance-summary">
+            <Text style={styles.distanceText} testID="distance-summary">
               {distance.distanceKm} km · {distance.bearingDegrees}°
             </Text>
           )}
           {distanceStatus === 'error' && (
-            <Text testID="distance-error">Could not calculate distance</Text>
+            <Text style={styles.distanceText} testID="distance-error">
+              Could not calculate distance
+            </Text>
           )}
         </View>
       )}
@@ -435,11 +422,9 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   card: {
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
+    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.md,
-    ...cardShadow,
   },
   mapCard: {
     borderRadius: radius.card,
@@ -478,8 +463,15 @@ const styles = StyleSheet.create({
   destinationLabel: {
     flex: 1,
   },
+  destinationText: {
+    color: colors.textOnGradient,
+  },
   destinationSelected: {
     fontWeight: '700',
+  },
+  distanceText: {
+    color: colors.textOnGradient,
+    fontWeight: '600',
   },
   deleteButton: {
     color: colors.danger,

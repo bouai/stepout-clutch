@@ -18,7 +18,7 @@ import type {
   SavedDestination,
   Weather,
 } from '../types/models';
-import { cardShadow, colors, radius, spacing } from '../theme';
+import { glassCard, colors, spacing } from '../theme';
 import { formatRelativeTime } from '../utils/time';
 
 const DEFAULT_LATITUDE = 28.6139;
@@ -287,6 +287,12 @@ export default function HomeScreen() {
   const unpackedItems = inventoryItems.filter((item) => !item.isPacked);
   const showReadiness = currentTripId !== null && inventoryItems.length > 0;
 
+  // One readiness figure across checklist + packing — "you're ready when your
+  // trip is ready", rather than two disconnected counters.
+  const totalItems = checklistItems.length + inventoryItems.length;
+  const doneItems = checkedCount + packedCount;
+  const readyPercent = totalItems > 0 ? Math.round((doneItems / totalItems) * 100) : 0;
+
   return (
     <ScreenContainer
       title="StepOut"
@@ -353,53 +359,51 @@ export default function HomeScreen() {
         )}
       </View>
 
-      <View style={styles.ringsRow}>
+      <View style={styles.readyCard} testID="home-ready">
         {checklistStatus === 'loading' || inventoryStatus === 'loading' ? (
-          <View style={styles.ringCard}>
-            <ActivityIndicator />
-          </View>
+          <ActivityIndicator />
+        ) : totalItems === 0 ? (
+          <Text style={styles.readyEmpty} testID="home-ready-empty">
+            Add a trip to see how ready you are.
+          </Text>
         ) : (
           <>
-            <View style={styles.ringCard}>
-              <ProgressRing
-                label="Checklist"
-                completed={checkedCount}
-                total={checklistItems.length}
-                testID="home-checklist-ring"
-              />
-            </View>
-            <View style={styles.ringCard}>
-              <ProgressRing
-                label="Packing"
-                completed={packedCount}
-                total={inventoryItems.length}
-                testID="home-packing-ring"
-              />
+            <ProgressRing
+              label="Ready"
+              completed={doneItems}
+              total={totalItems}
+              size={104}
+              strokeWidth={9}
+              centerLabel={`${readyPercent}%`}
+              onGlass
+              testID="home-ready-ring"
+            />
+            <View style={styles.readySubs}>
+              <Text style={styles.readyHeadline} testID="home-ready-headline">
+                {readyPercent === 100
+                  ? "You're all set."
+                  : `You're ${readyPercent}% ready`}
+              </Text>
+              <Text style={styles.readySubStat} testID="home-checklist-count">
+                ✓ Checklist {checkedCount}/{checklistItems.length}
+              </Text>
+              <Text style={styles.readySubStat} testID="home-packing-count">
+                🎒 Packing {packedCount}/{inventoryItems.length}
+              </Text>
             </View>
           </>
         )}
       </View>
 
-      {showReadiness && (
-        <>
-          <Text style={styles.sectionLabel}>READY TO GO?</Text>
-          <View style={styles.rowCard} testID="home-readiness">
-            {unpackedItems.length === 0 ? (
-              <Text style={styles.readinessDone} testID="home-readiness-done">
-                ✅ All packed — you're good to go.
-              </Text>
-            ) : (
-              <>
-                <Text style={styles.readinessTitle} testID="home-readiness-summary">
-                  {packedCount} of {inventoryItems.length} packed — still need:
-                </Text>
-                <Text style={styles.readinessItems} testID="home-readiness-items">
-                  {unpackedItems.map((item) => item.name).join(', ')}
-                </Text>
-              </>
-            )}
-          </View>
-        </>
+      {showReadiness && unpackedItems.length > 0 && (
+        <View style={styles.rowCard} testID="home-readiness">
+          <Text style={styles.readinessTitle} testID="home-readiness-summary">
+            Still to pack ({unpackedItems.length}):
+          </Text>
+          <Text style={styles.readinessItems} testID="home-readiness-items">
+            {unpackedItems.map((item) => item.name).join(', ')}
+          </Text>
+        </View>
       )}
 
       <Text style={styles.sectionLabel}>UP NEXT</Text>
@@ -479,10 +483,7 @@ const styles = StyleSheet.create({
   // Translucent so the coral-to-purple gradient reads through, per the mockup;
   // the previous opaque white cards flattened the whole screen.
   weatherCard: {
-    backgroundColor: colors.cardTranslucent,
-    borderWidth: 1,
-    borderColor: colors.cardTranslucentBorder,
-    borderRadius: radius.card,
+    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
@@ -525,18 +526,34 @@ const styles = StyleSheet.create({
     color: colors.textOnGradientMuted,
     marginTop: 4,
   },
-  ringsRow: {
+  readyCard: {
+    ...glassCard,
     flexDirection: 'row',
-    gap: spacing.md,
-    marginBottom: spacing.lg,
-  },
-  ringCard: {
-    flex: 1,
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
-    paddingVertical: spacing.md,
     alignItems: 'center',
-    ...cardShadow,
+    gap: spacing.lg,
+    padding: spacing.md,
+    marginBottom: spacing.lg,
+    minHeight: 132,
+    justifyContent: 'center',
+  },
+  readySubs: {
+    flex: 1,
+    gap: 6,
+  },
+  readyHeadline: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.textOnGradient,
+    marginBottom: 2,
+  },
+  readySubStat: {
+    fontSize: 14,
+    color: colors.textOnGradientMuted,
+    fontWeight: '600',
+  },
+  readyEmpty: {
+    color: colors.textOnGradientMuted,
+    textAlign: 'center',
   },
   // Caps label sitting on the gradient above its card, not a title inside it.
   sectionLabel: {
@@ -547,11 +564,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   rowCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
+    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.lg,
-    ...cardShadow,
   },
   rowContent: {
     flexDirection: 'row',
@@ -566,33 +581,33 @@ const styles = StyleSheet.create({
   },
   rowChevron: {
     fontSize: 24,
-    color: colors.textSecondary,
+    color: colors.textOnGradientMuted,
     fontWeight: '400',
   },
   rowTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.textPrimary,
+    color: colors.textOnGradient,
   },
   rowSubtitle: {
     fontSize: 13,
-    color: colors.textSecondary,
+    color: colors.textOnGradientMuted,
     marginTop: 2,
   },
   rowMuted: {
-    color: colors.textSecondary,
+    color: colors.textOnGradientMuted,
   },
   readinessTitle: {
-    color: colors.textPrimary,
+    color: colors.textOnGradient,
     fontWeight: '700',
     marginBottom: 4,
   },
   readinessItems: {
-    color: colors.accent,
-    fontWeight: '600',
+    color: colors.textOnGradient,
+    fontWeight: '700',
   },
   readinessDone: {
-    color: colors.accentDark,
+    color: colors.textOnGradient,
     fontWeight: '700',
   },
 });

@@ -15,16 +15,18 @@ import {
 
 import ListState, { type LoadStatus } from '../components/ListState';
 import ScreenContainer from '../components/ScreenContainer';
+import SwipeRow from '../components/SwipeRow';
 import TripSwitcher from '../components/TripSwitcher';
 import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
+import { useCachedResource, invalidateResource } from '../hooks/useCachedResource';
 import type {
   ChecklistCategory,
   ChecklistItem,
   InventoryItem,
   Weather,
 } from '../types/models';
-import { cardShadow, colors, radius, spacing } from '../theme';
+import { glassCard, colors, radius, spacing } from '../theme';
 
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
@@ -83,12 +85,37 @@ export default function PlannerScreen() {
   const [weather, setWeather] = useState<Weather | null>(null);
   const [weatherStatus, setWeatherStatus] = useState<WeatherStatus>('loading');
   const [usedDefaultLocation, setUsedDefaultLocation] = useState(false);
-  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
-  const [checklistStatus, setChecklistStatus] = useState<LoadStatus>('loading');
-  const [checklistError, setChecklistError] = useState<string | null>(null);
+  const cacheKey = currentTripId ?? 'all';
+  const {
+    data: checklistData,
+    status: checklistFetch,
+    error: checklistError,
+    refetch: refetchChecklist,
+    mutate: mutateChecklist,
+  } = useCachedResource<ChecklistItem[]>(
+    `checklist:${cacheKey}`,
+    currentTripId !== null ? `/checklist-items?tripId=${currentTripId}` : '/checklist-items'
+  );
+  const {
+    data: inventoryData,
+    refetch: refetchInventory,
+    mutate: mutateInventory,
+  } = useCachedResource<InventoryItem[]>(
+    `inventory:${cacheKey}`,
+    currentTripId !== null ? `/inventory-items?tripId=${currentTripId}` : '/inventory-items'
+  );
+  const checklistItems = checklistData ?? [];
+  const inventoryItems = inventoryData ?? [];
   const [refreshing, setRefreshing] = useState(false);
 
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const checklistStatus: LoadStatus =
+    checklistFetch === 'loading'
+      ? 'loading'
+      : checklistFetch === 'error'
+        ? 'error'
+        : checklistItems.length === 0
+          ? 'empty'
+          : 'ready';
 
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [editingLabel, setEditingLabel] = useState('');
@@ -133,77 +160,25 @@ export default function PlannerScreen() {
     };
   }, []);
 
-  const loadLists = useCallback(
-    async (isCancelled: () => boolean) => {
-      const tripQuery = currentTripId !== null ? `?tripId=${currentTripId}` : '';
-
-      // A recurring trip starts each day fresh — unchecking happens before the
-      // list is fetched, so the reset is already reflected in what loads.
-      if (currentTripId !== null) {
-        await maybeResetChecklist(currentTripId);
-      }
-
-      async function loadChecklist() {
-        try {
-          const data = await apiRequest<ChecklistItem[]>(
-            `/checklist-items${tripQuery}`
-          );
-          if (!isCancelled()) {
-            setChecklistItems(data);
-            setChecklistError(null);
-            setChecklistStatus(data.length === 0 ? 'empty' : 'ready');
-          }
-        } catch (error) {
-          // Preserve what is on screen and name the failure, rather than
-          // blanking to something that reads as 'you have no items'.
-          if (!isCancelled()) {
-            setChecklistError(describeError(error));
-            setChecklistStatus('error');
-          }
-        }
-      }
-
-      async function loadInventory() {
-        try {
-          const data = await apiRequest<InventoryItem[]>(
-            `/inventory-items${tripQuery}`
-          );
-          if (!isCancelled()) {
-            setInventoryItems(data);
-          }
-        } catch {
-          if (!isCancelled()) {
-            setInventoryItems([]);
-          }
-        }
-      }
-
-      await Promise.all([loadChecklist(), loadInventory()]);
-    },
-    [currentTripId, maybeResetChecklist]
-  );
+  const refreshLists = useCallback(async () => {
+    // A recurring trip starts each day fresh — reset before refetching so the
+    // unchecked state is what loads.
+    if (currentTripId !== null) {
+      await maybeResetChecklist(currentTripId);
+    }
+    await Promise.all([refetchChecklist(), refetchInventory()]);
+  }, [currentTripId, maybeResetChecklist, refetchChecklist, refetchInventory]);
 
   async function handleRefresh() {
     setRefreshing(true);
-    await loadLists(() => false);
+    await refreshLists();
     setRefreshing(false);
-  }
-
-  function retryChecklist() {
-    setChecklistStatus('loading');
-    loadLists(() => false);
   }
 
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-
-      loadLists(() => cancelled);
-
-      return () => {
-        cancelled = true;
-      };
-    }, [loadLists])
+      refreshLists();
+    }, [refreshLists])
   );
 
   function clearRowError(itemId: number) {
@@ -217,8 +192,10 @@ export default function PlannerScreen() {
 
   function setLinkedInventoryPacked(inventoryItemId: number | null, isPacked: boolean) {
     if (inventoryItemId === null) return;
-    setInventoryItems((prev) =>
-      prev.map((row) => (row.id === inventoryItemId ? { ...row, isPacked } : row))
+    mutateInventory((prev) =>
+      (prev ?? []).map((row) =>
+        row.id === inventoryItemId ? { ...row, isPacked } : row
+      )
     );
   }
 
@@ -227,8 +204,8 @@ export default function PlannerScreen() {
     const nextChecked = !previousChecked;
 
     clearRowError(item.id);
-    setChecklistItems((prev) =>
-      prev.map((row) =>
+    mutateChecklist((prev) =>
+      (prev ?? []).map((row) =>
         row.id === item.id ? { ...row, isChecked: nextChecked } : row
       )
     );
@@ -236,9 +213,10 @@ export default function PlannerScreen() {
 
     try {
       await patchChecklistItem(item.id, { isChecked: nextChecked });
+      invalidateResource('inventory:');
     } catch {
-      setChecklistItems((prev) =>
-        prev.map((row) =>
+      mutateChecklist((prev) =>
+        (prev ?? []).map((row) =>
           row.id === item.id ? { ...row, isChecked: previousChecked } : row
         )
       );
@@ -262,15 +240,17 @@ export default function PlannerScreen() {
     }
 
     const previousLabel = item.label;
-    setChecklistItems((prev) =>
-      prev.map((row) => (row.id === item.id ? { ...row, label: trimmed } : row))
+    mutateChecklist((prev) =>
+      (prev ?? []).map((row) =>
+        row.id === item.id ? { ...row, label: trimmed } : row
+      )
     );
 
     try {
       await patchChecklistItem(item.id, { label: trimmed });
     } catch {
-      setChecklistItems((prev) =>
-        prev.map((row) =>
+      mutateChecklist((prev) =>
+        (prev ?? []).map((row) =>
           row.id === item.id ? { ...row, label: previousLabel } : row
         )
       );
@@ -297,14 +277,13 @@ export default function PlannerScreen() {
     const index = checklistItems.findIndex((row) => row.id === item.id);
 
     clearRowError(item.id);
-    setChecklistItems((prev) => prev.filter((row) => row.id !== item.id));
+    mutateChecklist((prev) => (prev ?? []).filter((row) => row.id !== item.id));
 
     try {
       await apiRequest<void>(`/checklist-items/${item.id}`, { method: 'DELETE' });
-      if (checklistItems.length === 1) setChecklistStatus('empty');
     } catch {
-      setChecklistItems((prev) => {
-        const next = [...prev];
+      mutateChecklist((prev) => {
+        const next = [...(prev ?? [])];
         next.splice(index, 0, item);
         return next;
       });
@@ -347,8 +326,8 @@ export default function PlannerScreen() {
           ...(currentTripId !== null ? { tripId: currentTripId } : {}),
         },
       });
-      setChecklistItems((prev) => [...prev, created]);
-      setChecklistStatus('ready');
+      mutateChecklist((prev) => [...(prev ?? []), created]);
+      if (modalInventoryItemId !== null) invalidateResource('inventory:');
       closeAddModal();
     } catch (error) {
       setModalError(describeError(error));
@@ -373,7 +352,7 @@ export default function PlannerScreen() {
           {weatherStatus === 'loading' && <ActivityIndicator />}
           {weatherStatus === 'ready' && weather && (
             <>
-              <Text testID="weather-summary">
+              <Text style={styles.weatherText} testID="weather-summary">
                 {Math.round(weather.temperatureCelsius)}°C · {weather.condition}
               </Text>
               {usedDefaultLocation && (
@@ -382,7 +361,9 @@ export default function PlannerScreen() {
             </>
           )}
           {weatherStatus === 'unavailable' && (
-            <Text testID="weather-unavailable">Weather unavailable</Text>
+            <Text style={styles.weatherText} testID="weather-unavailable">
+              Weather unavailable
+            </Text>
           )}
         </View>
       </View>
@@ -400,12 +381,16 @@ export default function PlannerScreen() {
             status={checklistStatus}
             emptyMessage="No checklist items yet"
             errorMessage={checklistError ?? undefined}
-            onRetry={retryChecklist}
+            onRetry={refetchChecklist}
             testIDPrefix="checklist"
           />
           {checklistStatus === 'ready' &&
             checklistItems.map((item) => (
             <View key={item.id} style={styles.checklistRow}>
+              <SwipeRow
+                onDelete={() => confirmDelete(item)}
+                testID={`item-${item.id}`}
+              >
               <View style={styles.checklistRowMain}>
                 <Pressable
                   onPress={() => toggleChecked(item)}
@@ -432,9 +417,7 @@ export default function PlannerScreen() {
                     style={styles.labelPressable}
                     onPress={() => beginLabelEdit(item)}
                   >
-                    <Text
-                      style={item.isChecked ? styles.labelChecked : undefined}
-                    >
+                    <Text style={item.isChecked ? styles.labelChecked : styles.label}>
                       {item.label}
                     </Text>
                   </Pressable>
@@ -463,15 +446,8 @@ export default function PlannerScreen() {
                       </Text>
                     );
                   })()}
-
-                <Pressable
-                  onPress={() => confirmDelete(item)}
-                  testID={`delete-${item.id}`}
-                  hitSlop={8}
-                >
-                  <Text style={styles.deleteButton}>Delete</Text>
-                </Pressable>
               </View>
+              </SwipeRow>
               {rowErrors[item.id] && (
                 <Text style={styles.rowError} testID={`row-error-${item.id}`}>
                   {rowErrors[item.id]}
@@ -485,7 +461,7 @@ export default function PlannerScreen() {
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.sectionTitle}>Add Item</Text>
+            <Text style={styles.modalTitle}>Add Item</Text>
 
             <TextInput
               style={styles.modalInput}
@@ -556,17 +532,19 @@ export default function PlannerScreen() {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
+    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.md,
-    ...cardShadow,
   },
   checklistCard: {},
   weatherSection: {},
+  weatherText: {
+    color: colors.textOnGradient,
+    fontWeight: '600',
+  },
   note: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: colors.textOnGradientMuted,
     marginTop: 4,
   },
   checklistHeader: {
@@ -575,9 +553,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  // Sits on the glass checklist card.
   sectionTitle: {
     fontSize: 16,
+    fontWeight: '700',
+    color: colors.textOnGradient,
+  },
+  // Sits on the opaque white modal.
+  modalTitle: {
+    fontSize: 16,
     fontWeight: '600',
+    color: colors.textPrimary,
   },
   addButton: {
     color: colors.accent,
@@ -598,29 +584,34 @@ const styles = StyleSheet.create({
   },
   checkbox: {
     fontSize: 18,
+    color: colors.textOnGradient,
   },
   labelPressable: {
     flex: 1,
   },
+  label: {
+    color: colors.textOnGradient,
+  },
   labelInput: {
     flex: 1,
+    color: colors.textOnGradient,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.textSecondary,
+    borderColor: colors.cardTranslucentBorder,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
   labelChecked: {
     textDecorationLine: 'line-through',
-    color: '#888',
+    color: colors.textOnGradientMuted,
   },
   todayTag: {
     fontSize: 12,
-    fontWeight: '600',
-    color: colors.accent,
+    fontWeight: '700',
+    color: colors.textOnGradient,
   },
   inventoryBadge: {
     fontSize: 12,
-    color: colors.textSecondary,
+    color: colors.textOnGradientMuted,
   },
   deleteButton: {
     color: colors.danger,

@@ -13,6 +13,7 @@ import {
   setAuthToken,
   setUnauthorizedHandler,
 } from '../api';
+import { clearResourceCache } from '../hooks/useCachedResource';
 
 const SESSION_KEY = 'stepout_session_token';
 
@@ -50,6 +51,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     setUser(null);
     setAuthToken(null);
+    // Never let one account's cached trips flash under the next account.
+    clearResourceCache();
     try {
       await AsyncStorage.removeItem(SESSION_KEY);
     } catch {

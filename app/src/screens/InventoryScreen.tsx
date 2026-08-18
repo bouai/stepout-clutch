@@ -13,11 +13,13 @@ import {
 
 import ListState, { type LoadStatus } from '../components/ListState';
 import ScreenContainer from '../components/ScreenContainer';
+import SwipeRow from '../components/SwipeRow';
 import TripSwitcher from '../components/TripSwitcher';
 import { useTripContext } from '../context/TripContext';
+import { useCachedResource, invalidateResource } from '../hooks/useCachedResource';
 import { apiRequest, describeError } from '../api';
 import type { InventoryCategory, InventoryItem } from '../types/models';
-import { cardShadow, colors, radius, spacing, typography } from '../theme';
+import { glassCard, colors, radius, spacing, typography } from '../theme';
 
 const INVENTORY_CATEGORIES: InventoryCategory[] = [
   'electronics',
@@ -36,12 +38,26 @@ async function patchInventoryItem(
   });
 }
 
+const inventoryPath = (tripId: number | null) =>
+  tripId !== null ? `/inventory-items?tripId=${tripId}` : '/inventory-items';
+
 export default function InventoryScreen() {
   const { currentTripId } = useTripContext();
 
-  const [items, setItems] = useState<InventoryItem[]>([]);
-  const [status, setStatus] = useState<LoadStatus>('loading');
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // Cached: the last-loaded list shows instantly on re-focus while a fresh copy
+  // loads quietly behind it, so switching tabs no longer flashes empty.
+  const {
+    data,
+    status: fetchStatus,
+    error: loadError,
+    refetch,
+    mutate,
+  } = useCachedResource<InventoryItem[]>(
+    `inventory:${currentTripId ?? 'all'}`,
+    inventoryPath(currentTripId)
+  );
+  const items = data ?? [];
+
   const [refreshing, setRefreshing] = useState(false);
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
 
@@ -51,50 +67,26 @@ export default function InventoryScreen() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSubmitting, setModalSubmitting] = useState(false);
 
-  const loadItems = useCallback(
-    async (isCancelled: () => boolean) => {
-      try {
-        const data = await apiRequest<InventoryItem[]>('/inventory-items', {
-          query: { tripId: currentTripId },
-        });
-        if (!isCancelled()) {
-          setItems(data);
-          setLoadError(null);
-          setStatus(data.length === 0 ? 'empty' : 'ready');
-        }
-      } catch (error) {
-        // Keep whatever is on screen and say so, rather than blanking the list
-        // into something indistinguishable from "you have no items".
-        if (!isCancelled()) {
-          setLoadError(describeError(error));
-          setStatus('error');
-        }
-      }
-    },
-    [currentTripId]
-  );
-
-  function retry() {
-    setStatus('loading');
-    loadItems(() => false);
-  }
+  const status: LoadStatus =
+    fetchStatus === 'loading'
+      ? 'loading'
+      : fetchStatus === 'error'
+        ? 'error'
+        : items.length === 0
+          ? 'empty'
+          : 'ready';
 
   async function handleRefresh() {
     setRefreshing(true);
-    await loadItems(() => false);
+    await refetch();
     setRefreshing(false);
   }
 
+  // Keep the list fresh whenever the tab regains focus.
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-
-      loadItems(() => cancelled);
-
-      return () => {
-        cancelled = true;
-      };
-    }, [loadItems])
+      refetch();
+    }, [refetch])
   );
 
   function clearRowError(itemId: number) {
@@ -111,15 +103,19 @@ export default function InventoryScreen() {
     const nextPacked = !previousPacked;
 
     clearRowError(item.id);
-    setItems((prev) =>
-      prev.map((row) => (row.id === item.id ? { ...row, isPacked: nextPacked } : row))
+    mutate((prev) =>
+      (prev ?? []).map((row) =>
+        row.id === item.id ? { ...row, isPacked: nextPacked } : row
+      )
     );
 
     try {
       await patchInventoryItem(item.id, { isPacked: nextPacked });
+      // A packing change flips any linked checklist item, so its cache is stale.
+      invalidateResource('checklist:');
     } catch {
-      setItems((prev) =>
-        prev.map((row) =>
+      mutate((prev) =>
+        (prev ?? []).map((row) =>
           row.id === item.id ? { ...row, isPacked: previousPacked } : row
         )
       );
@@ -146,14 +142,13 @@ export default function InventoryScreen() {
     const index = items.findIndex((row) => row.id === item.id);
 
     clearRowError(item.id);
-    setItems((prev) => prev.filter((row) => row.id !== item.id));
+    mutate((prev) => (prev ?? []).filter((row) => row.id !== item.id));
 
     try {
       await apiRequest<void>(`/inventory-items/${item.id}`, { method: 'DELETE' });
-      if (items.length === 1) setStatus('empty');
     } catch {
-      setItems((prev) => {
-        const next = [...prev];
+      mutate((prev) => {
+        const next = [...(prev ?? [])];
         next.splice(index, 0, item);
         return next;
       });
@@ -191,8 +186,7 @@ export default function InventoryScreen() {
           ...(currentTripId !== null ? { tripId: currentTripId } : {}),
         },
       });
-      setItems((prev) => [...prev, created]);
-      setStatus('ready');
+      mutate((prev) => [...(prev ?? []), created]);
       closeAddModal();
     } catch (error) {
       setModalError(describeError(error));
@@ -223,31 +217,29 @@ export default function InventoryScreen() {
           status={status}
           emptyMessage="No inventory items yet"
           errorMessage={loadError ?? undefined}
-          onRetry={retry}
+          onRetry={refetch}
           testIDPrefix="inventory"
         />
         {status === 'ready' &&
           items.map((item) => (
             <View key={item.id} style={styles.row}>
-              <View style={styles.rowMain}>
-                <Pressable
-                  onPress={() => togglePacked(item)}
-                  testID={`checkbox-${item.id}`}
-                  hitSlop={8}
-                >
-                  <Text style={styles.checkbox}>{item.isPacked ? '☑' : '☐'}</Text>
-                </Pressable>
-                <Text style={item.isPacked ? styles.nameChecked : styles.name}>
-                  {item.name} ({item.quantity})
-                </Text>
-                <Pressable
-                  onPress={() => confirmDelete(item)}
-                  testID={`delete-${item.id}`}
-                  hitSlop={8}
-                >
-                  <Text style={styles.deleteButton}>Delete</Text>
-                </Pressable>
-              </View>
+              <SwipeRow
+                onDelete={() => confirmDelete(item)}
+                testID={`item-${item.id}`}
+              >
+                <View style={styles.rowMain}>
+                  <Pressable
+                    onPress={() => togglePacked(item)}
+                    testID={`checkbox-${item.id}`}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.checkbox}>{item.isPacked ? '☑' : '☐'}</Text>
+                  </Pressable>
+                  <Text style={item.isPacked ? styles.nameChecked : styles.name}>
+                    {item.name} ({item.quantity})
+                  </Text>
+                </View>
+              </SwipeRow>
               {rowErrors[item.id] && (
                 <Text style={styles.rowError} testID={`row-error-${item.id}`}>
                   {rowErrors[item.id]}
@@ -324,16 +316,16 @@ const styles = StyleSheet.create({
     ...typography.heading,
   },
   card: {
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
+    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.md,
-    ...cardShadow,
   },
   listCard: {},
+  // Used only inside the opaque white modal, so it keeps dark text.
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
+    color: colors.textPrimary,
   },
   addButton: {
     color: colors.accent,
@@ -351,14 +343,16 @@ const styles = StyleSheet.create({
   },
   checkbox: {
     fontSize: 18,
+    color: colors.textOnGradient,
   },
   name: {
     flex: 1,
+    color: colors.textOnGradient,
   },
   nameChecked: {
     flex: 1,
     textDecorationLine: 'line-through',
-    color: '#888',
+    color: colors.textOnGradientMuted,
   },
   deleteButton: {
     color: colors.danger,

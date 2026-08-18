@@ -156,3 +156,52 @@ def test_honours_the_limit(client, stub_photon):
 
 def test_rejects_an_out_of_range_limit(client):
     assert client.get("/places?q=indiranagar&limit=99").status_code == 422
+
+
+def test_reverse_geocode_names_a_dropped_pin(client, monkeypatch):
+    def fake_get(url, params=None, headers=None, timeout=None):
+        import httpx as _httpx
+        request = _httpx.Request("GET", url)
+        return _httpx.Response(
+            200,
+            json={
+                "features": [
+                    {
+                        "properties": {
+                            "name": "Sector 62",
+                            "city": "Noida",
+                            "state": "Uttar Pradesh",
+                            "country": "India",
+                        }
+                    }
+                ]
+            },
+            request=request,
+        )
+
+    from app.routers import places
+
+    places._reverse_cached.cache_clear()
+    monkeypatch.setattr(places.httpx, "get", fake_get)
+
+    place = client.get("/places/reverse?lat=28.6&lon=77.4").json()
+    assert place["name"] == "Sector 62"
+    assert "Noida" in place["context"]
+    assert place["latitude"] == 28.6
+    assert place["longitude"] == 77.4
+
+
+def test_reverse_geocode_falls_back_when_nothing_is_mapped(client, monkeypatch):
+    def fake_get(url, params=None, headers=None, timeout=None):
+        import httpx as _httpx
+        request = _httpx.Request("GET", url)
+        return _httpx.Response(200, json={"features": []}, request=request)
+
+    from app.routers import places
+
+    places._reverse_cached.cache_clear()
+    monkeypatch.setattr(places.httpx, "get", fake_get)
+
+    place = client.get("/places/reverse?lat=0&lon=0").json()
+    assert place["name"] == "Dropped pin"
+    assert place["latitude"] == 0

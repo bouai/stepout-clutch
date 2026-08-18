@@ -15,6 +15,7 @@ import {
 import { useTripContext, type TripCoords } from '../context/TripContext';
 import type { TripType } from '../types/models';
 import { cardShadow, colors, radius, spacing } from '../theme';
+import MapPicker from './MapPicker';
 import PlaceSearch from './PlaceSearch';
 
 type ModalMode = 'create' | 'rename';
@@ -40,6 +41,7 @@ export default function TripSwitcher() {
   const [tripType, setTripType] = useState<TripType | null>(null);
   const [isRecurring, setIsRecurring] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [pickerVisible, setPickerVisible] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -323,18 +325,30 @@ export default function TripSwitcher() {
                   }
                   testIDPrefix="trip-place-search"
                 />
-                <Pressable
-                  style={styles.locationRow}
-                  onPress={captureLocation}
-                  disabled={locating}
-                  testID="trip-use-location-button"
-                >
-                  {locating ? (
-                    <ActivityIndicator size="small" />
-                  ) : (
-                    <Text style={styles.locationText}>📍 Use my current location</Text>
-                  )}
-                </Pressable>
+                <View style={styles.locationOptions}>
+                  <Pressable
+                    style={[styles.locationRow, styles.locationHalf]}
+                    onPress={captureLocation}
+                    disabled={locating}
+                    testID="trip-use-location-button"
+                  >
+                    {locating ? (
+                      <ActivityIndicator size="small" />
+                    ) : (
+                      <Text style={styles.locationText}>📍 Current</Text>
+                    )}
+                  </Pressable>
+                  <Pressable
+                    style={[styles.locationRow, styles.locationHalf]}
+                    onPress={() => setPickerVisible(true)}
+                    testID="trip-pick-map-button"
+                  >
+                    <Text style={styles.locationText}>🗺 Pick on map</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.pickHint}>
+                  Can't find it by name? Drop a pin on the map.
+                </Text>
               </>
             )}
 
@@ -372,6 +386,16 @@ export default function TripSwitcher() {
           </View>
         </View>
       </Modal>
+
+      <MapPicker
+        visible={pickerVisible}
+        initialCenter={coords ?? null}
+        onCancel={() => setPickerVisible(false)}
+        onConfirm={(coordinate, locationName) => {
+          setCoords({ ...coordinate, locationName });
+          setPickerVisible(false);
+        }}
+      />
     </View>
   );
 }
@@ -507,6 +531,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
     gap: spacing.sm,
+  },
+  locationOptions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  locationHalf: {
+    flex: 1,
+  },
+  pickHint: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
   },
   locationText: {
     color: colors.textPrimary,
