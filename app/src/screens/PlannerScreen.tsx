@@ -18,6 +18,7 @@ import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
 import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
+import { useCachedResource, invalidateResource } from '../hooks/useCachedResource';
 import type {
   ChecklistCategory,
   ChecklistItem,
@@ -83,12 +84,37 @@ export default function PlannerScreen() {
   const [weather, setWeather] = useState<Weather | null>(null);
   const [weatherStatus, setWeatherStatus] = useState<WeatherStatus>('loading');
   const [usedDefaultLocation, setUsedDefaultLocation] = useState(false);
-  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
-  const [checklistStatus, setChecklistStatus] = useState<LoadStatus>('loading');
-  const [checklistError, setChecklistError] = useState<string | null>(null);
+  const cacheKey = currentTripId ?? 'all';
+  const {
+    data: checklistData,
+    status: checklistFetch,
+    error: checklistError,
+    refetch: refetchChecklist,
+    mutate: mutateChecklist,
+  } = useCachedResource<ChecklistItem[]>(
+    `checklist:${cacheKey}`,
+    currentTripId !== null ? `/checklist-items?tripId=${currentTripId}` : '/checklist-items'
+  );
+  const {
+    data: inventoryData,
+    refetch: refetchInventory,
+    mutate: mutateInventory,
+  } = useCachedResource<InventoryItem[]>(
+    `inventory:${cacheKey}`,
+    currentTripId !== null ? `/inventory-items?tripId=${currentTripId}` : '/inventory-items'
+  );
+  const checklistItems = checklistData ?? [];
+  const inventoryItems = inventoryData ?? [];
   const [refreshing, setRefreshing] = useState(false);
 
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const checklistStatus: LoadStatus =
+    checklistFetch === 'loading'
+      ? 'loading'
+      : checklistFetch === 'error'
+        ? 'error'
+        : checklistItems.length === 0
+          ? 'empty'
+          : 'ready';
 
   const [editingItemId, setEditingItemId] = useState<number | null>(null);
   const [editingLabel, setEditingLabel] = useState('');
@@ -133,77 +159,25 @@ export default function PlannerScreen() {
     };
   }, []);
 
-  const loadLists = useCallback(
-    async (isCancelled: () => boolean) => {
-      const tripQuery = currentTripId !== null ? `?tripId=${currentTripId}` : '';
-
-      // A recurring trip starts each day fresh — unchecking happens before the
-      // list is fetched, so the reset is already reflected in what loads.
-      if (currentTripId !== null) {
-        await maybeResetChecklist(currentTripId);
-      }
-
-      async function loadChecklist() {
-        try {
-          const data = await apiRequest<ChecklistItem[]>(
-            `/checklist-items${tripQuery}`
-          );
-          if (!isCancelled()) {
-            setChecklistItems(data);
-            setChecklistError(null);
-            setChecklistStatus(data.length === 0 ? 'empty' : 'ready');
-          }
-        } catch (error) {
-          // Preserve what is on screen and name the failure, rather than
-          // blanking to something that reads as 'you have no items'.
-          if (!isCancelled()) {
-            setChecklistError(describeError(error));
-            setChecklistStatus('error');
-          }
-        }
-      }
-
-      async function loadInventory() {
-        try {
-          const data = await apiRequest<InventoryItem[]>(
-            `/inventory-items${tripQuery}`
-          );
-          if (!isCancelled()) {
-            setInventoryItems(data);
-          }
-        } catch {
-          if (!isCancelled()) {
-            setInventoryItems([]);
-          }
-        }
-      }
-
-      await Promise.all([loadChecklist(), loadInventory()]);
-    },
-    [currentTripId, maybeResetChecklist]
-  );
+  const refreshLists = useCallback(async () => {
+    // A recurring trip starts each day fresh — reset before refetching so the
+    // unchecked state is what loads.
+    if (currentTripId !== null) {
+      await maybeResetChecklist(currentTripId);
+    }
+    await Promise.all([refetchChecklist(), refetchInventory()]);
+  }, [currentTripId, maybeResetChecklist, refetchChecklist, refetchInventory]);
 
   async function handleRefresh() {
     setRefreshing(true);
-    await loadLists(() => false);
+    await refreshLists();
     setRefreshing(false);
-  }
-
-  function retryChecklist() {
-    setChecklistStatus('loading');
-    loadLists(() => false);
   }
 
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-
-      loadLists(() => cancelled);
-
-      return () => {
-        cancelled = true;
-      };
-    }, [loadLists])
+      refreshLists();
+    }, [refreshLists])
   );
 
   function clearRowError(itemId: number) {
@@ -217,8 +191,10 @@ export default function PlannerScreen() {
 
   function setLinkedInventoryPacked(inventoryItemId: number | null, isPacked: boolean) {
     if (inventoryItemId === null) return;
-    setInventoryItems((prev) =>
-      prev.map((row) => (row.id === inventoryItemId ? { ...row, isPacked } : row))
+    mutateInventory((prev) =>
+      (prev ?? []).map((row) =>
+        row.id === inventoryItemId ? { ...row, isPacked } : row
+      )
     );
   }
 
@@ -227,8 +203,8 @@ export default function PlannerScreen() {
     const nextChecked = !previousChecked;
 
     clearRowError(item.id);
-    setChecklistItems((prev) =>
-      prev.map((row) =>
+    mutateChecklist((prev) =>
+      (prev ?? []).map((row) =>
         row.id === item.id ? { ...row, isChecked: nextChecked } : row
       )
     );
@@ -236,9 +212,10 @@ export default function PlannerScreen() {
 
     try {
       await patchChecklistItem(item.id, { isChecked: nextChecked });
+      invalidateResource('inventory:');
     } catch {
-      setChecklistItems((prev) =>
-        prev.map((row) =>
+      mutateChecklist((prev) =>
+        (prev ?? []).map((row) =>
           row.id === item.id ? { ...row, isChecked: previousChecked } : row
         )
       );
@@ -262,15 +239,17 @@ export default function PlannerScreen() {
     }
 
     const previousLabel = item.label;
-    setChecklistItems((prev) =>
-      prev.map((row) => (row.id === item.id ? { ...row, label: trimmed } : row))
+    mutateChecklist((prev) =>
+      (prev ?? []).map((row) =>
+        row.id === item.id ? { ...row, label: trimmed } : row
+      )
     );
 
     try {
       await patchChecklistItem(item.id, { label: trimmed });
     } catch {
-      setChecklistItems((prev) =>
-        prev.map((row) =>
+      mutateChecklist((prev) =>
+        (prev ?? []).map((row) =>
           row.id === item.id ? { ...row, label: previousLabel } : row
         )
       );
@@ -297,14 +276,13 @@ export default function PlannerScreen() {
     const index = checklistItems.findIndex((row) => row.id === item.id);
 
     clearRowError(item.id);
-    setChecklistItems((prev) => prev.filter((row) => row.id !== item.id));
+    mutateChecklist((prev) => (prev ?? []).filter((row) => row.id !== item.id));
 
     try {
       await apiRequest<void>(`/checklist-items/${item.id}`, { method: 'DELETE' });
-      if (checklistItems.length === 1) setChecklistStatus('empty');
     } catch {
-      setChecklistItems((prev) => {
-        const next = [...prev];
+      mutateChecklist((prev) => {
+        const next = [...(prev ?? [])];
         next.splice(index, 0, item);
         return next;
       });
@@ -347,8 +325,8 @@ export default function PlannerScreen() {
           ...(currentTripId !== null ? { tripId: currentTripId } : {}),
         },
       });
-      setChecklistItems((prev) => [...prev, created]);
-      setChecklistStatus('ready');
+      mutateChecklist((prev) => [...(prev ?? []), created]);
+      if (modalInventoryItemId !== null) invalidateResource('inventory:');
       closeAddModal();
     } catch (error) {
       setModalError(describeError(error));
@@ -400,7 +378,7 @@ export default function PlannerScreen() {
             status={checklistStatus}
             emptyMessage="No checklist items yet"
             errorMessage={checklistError ?? undefined}
-            onRetry={retryChecklist}
+            onRetry={refetchChecklist}
             testIDPrefix="checklist"
           />
           {checklistStatus === 'ready' &&

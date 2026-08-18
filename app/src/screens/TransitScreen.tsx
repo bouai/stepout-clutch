@@ -23,6 +23,7 @@ import ScreenContainer from '../components/ScreenContainer';
 import TripSwitcher from '../components/TripSwitcher';
 import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
+import { useCachedResource } from '../hooks/useCachedResource';
 import type { Distance, SavedDestination } from '../types/models';
 import { cardShadow, colors, radius, spacing } from '../theme';
 
@@ -69,9 +70,19 @@ export default function TransitScreen() {
   } | null>(null);
   const [usedDefaultLocation, setUsedDefaultLocation] = useState(false);
 
-  const [destinations, setDestinations] = useState<SavedDestination[]>([]);
-  const [listStatus, setListStatus] = useState<LoadStatus>('loading');
-  const [listError, setListError] = useState<string | null>(null);
+  const {
+    data: destinationsData,
+    status: fetchStatus,
+    error: listError,
+    refetch: refetchDestinations,
+    mutate: mutateDestinations,
+  } = useCachedResource<SavedDestination[]>(
+    `destinations:${currentTripId ?? 'all'}`,
+    currentTripId !== null
+      ? `/saved-destinations?tripId=${currentTripId}`
+      : '/saved-destinations'
+  );
+  const destinations = destinationsData ?? [];
   const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
 
   const [selected, setSelected] = useState<SavedDestination | null>(null);
@@ -101,40 +112,18 @@ export default function TransitScreen() {
     };
   }, []);
 
-  const loadDestinations = useCallback(
-    async (isCancelled: () => boolean) => {
-      try {
-        const data = await apiRequest<SavedDestination[]>(
-          '/saved-destinations',
-          { query: { tripId: currentTripId } }
-        );
-        if (!isCancelled()) {
-          setDestinations(data);
-          setListError(null);
-          setListStatus(data.length === 0 ? 'empty' : 'ready');
-        }
-      } catch (error) {
-        if (!isCancelled()) {
-          setListError(describeError(error));
-          setListStatus('error');
-        }
-      }
-    },
-    [currentTripId]
-  );
-
-  function retryDestinations() {
-    setListStatus('loading');
-    loadDestinations(() => false);
-  }
+  const listStatus: LoadStatus =
+    fetchStatus === 'loading'
+      ? 'loading'
+      : fetchStatus === 'error'
+        ? 'error'
+        : destinations.length === 0
+          ? 'empty'
+          : 'ready';
 
   useEffect(() => {
-    let cancelled = false;
-    loadDestinations(() => cancelled);
-    return () => {
-      cancelled = true;
-    };
-  }, [loadDestinations]);
+    refetchDestinations();
+  }, [refetchDestinations]);
 
   async function selectDestination(destination: SavedDestination) {
     setSelected(destination);
@@ -193,8 +182,7 @@ export default function TransitScreen() {
           ...(currentTripId !== null ? { tripId: currentTripId } : {}),
         },
       });
-      setDestinations((prev) => [...prev, created]);
-      setListStatus('ready');
+      mutateDestinations((prev) => [...(prev ?? []), created]);
       closeCreateModal();
     } catch (error) {
       setCreateError(describeError(error));
@@ -227,7 +215,7 @@ export default function TransitScreen() {
       delete next[destination.id];
       return next;
     });
-    setDestinations((prev) => prev.filter((d) => d.id !== destination.id));
+    mutateDestinations((prev) => (prev ?? []).filter((d) => d.id !== destination.id));
     if (selected?.id === destination.id) {
       setSelected(null);
       setDistance(null);
@@ -238,10 +226,9 @@ export default function TransitScreen() {
       await apiRequest<void>(`/saved-destinations/${destination.id}`, {
         method: 'DELETE',
       });
-      if (destinations.length === 1) setListStatus('empty');
     } catch {
-      setDestinations((prev) => {
-        const next = [...prev];
+      mutateDestinations((prev) => {
+        const next = [...(prev ?? [])];
         next.splice(index, 0, destination);
         return next;
       });
@@ -316,7 +303,7 @@ export default function TransitScreen() {
             status={listStatus}
             emptyMessage="No saved destinations yet"
             errorMessage={listError ?? undefined}
-            onRetry={retryDestinations}
+            onRetry={refetchDestinations}
             testIDPrefix="destinations"
           />
           {listStatus === 'ready' && destinations.length > 0 && (
