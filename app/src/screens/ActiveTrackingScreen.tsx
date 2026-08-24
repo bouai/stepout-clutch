@@ -18,6 +18,7 @@ import MapCanvas, {
   type Coordinate,
 } from '../components/MapCanvas';
 
+import GlassCard from '../components/GlassCard';
 import ListState, { type LoadStatus } from '../components/ListState';
 import PlaceSearch, { type Place } from '../components/PlaceSearch';
 import ScreenContainer from '../components/ScreenContainer';
@@ -27,7 +28,7 @@ import { apiRequest, describeError } from '../api';
 import { startGeofencing } from '../geofencing';
 import { useTripContext } from '../context/TripContext';
 import type { GeofenceTrigger, GeofenceTriggerType } from '../types/models';
-import { cardShadow, glassCard, colors, radius, spacing } from '../theme';
+import { cardShadow, colors, radius, spacing } from '../theme';
 
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
@@ -317,6 +318,10 @@ export default function ActiveTrackingScreen() {
         />
       </View>
 
+      <Text style={styles.mapHint}>
+        Can't find it by name? Tap the map to drop a pin.
+      </Text>
+
       <View style={styles.mapCard}>
         <View style={styles.mapSection}>
         <MapCanvas
@@ -373,9 +378,11 @@ export default function ActiveTrackingScreen() {
         </Text>
       )}
 
-      <View style={[styles.card, styles.listCard]}>
+      <GlassCard
+        style={[styles.card, listStatus === 'ready' && styles.listCard]}
+      >
         <ScrollView
-          style={styles.listSection}
+          style={listStatus === 'ready' ? styles.listSection : undefined}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           testID="triggers-scroll"
@@ -423,7 +430,7 @@ export default function ActiveTrackingScreen() {
             </View>
           ))}
         </ScrollView>
-      </View>
+      </GlassCard>
 
       <Modal visible={pendingLocation !== null} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -525,8 +532,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     zIndex: 10,
   },
+  mapHint: {
+    color: colors.textOnGradientMuted,
+    fontSize: 12,
+    marginBottom: spacing.sm,
+  },
   card: {
-    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.md,
   },

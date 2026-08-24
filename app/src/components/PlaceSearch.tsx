@@ -139,7 +139,8 @@ export default function PlaceSearch({
 
       {status === 'empty' && (
         <Text style={styles.empty} testID={`${testIDPrefix}-empty`}>
-          No places matched that.
+          No matches — free maps miss many offices. Try a nearby landmark, or
+          drop a pin on the map below.
         </Text>
       )}
 

@@ -3,6 +3,7 @@ import * as Location from 'expo-location';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import GlassCard from '../components/GlassCard';
 import ProgressRing from '../components/ProgressRing';
 import ScreenContainer from '../components/ScreenContainer';
 import SettingsSheet from '../components/SettingsSheet';
@@ -18,7 +19,7 @@ import type {
   SavedDestination,
   Weather,
 } from '../types/models';
-import { glassCard, colors, spacing } from '../theme';
+import { colors, spacing } from '../theme';
 import { formatRelativeTime } from '../utils/time';
 
 const DEFAULT_LATITUDE = 28.6139;
@@ -321,7 +322,7 @@ export default function HomeScreen() {
 
       <TripSwitcher />
 
-      <View style={styles.weatherCard}>
+      <GlassCard style={styles.weatherCard}>
         {weatherStatus === 'loading' && <ActivityIndicator />}
         {weatherStatus === 'ready' && weather && (
           <>
@@ -357,9 +358,9 @@ export default function HomeScreen() {
             {weatherError ?? 'Weather unavailable'}
           </Text>
         )}
-      </View>
+      </GlassCard>
 
-      <View style={styles.readyCard} testID="home-ready">
+      <GlassCard style={styles.readyCard} testID="home-ready">
         {checklistStatus === 'loading' || inventoryStatus === 'loading' ? (
           <ActivityIndicator />
         ) : totalItems === 0 ? (
@@ -393,21 +394,21 @@ export default function HomeScreen() {
             </View>
           </>
         )}
-      </View>
+      </GlassCard>
 
       {showReadiness && unpackedItems.length > 0 && (
-        <View style={styles.rowCard} testID="home-readiness">
+        <GlassCard style={styles.rowCard} testID="home-readiness">
           <Text style={styles.readinessTitle} testID="home-readiness-summary">
             Still to pack ({unpackedItems.length}):
           </Text>
           <Text style={styles.readinessItems} testID="home-readiness-items">
             {unpackedItems.map((item) => item.name).join(', ')}
           </Text>
-        </View>
+        </GlassCard>
       )}
 
       <Text style={styles.sectionLabel}>UP NEXT</Text>
-      <View style={styles.rowCard}>
+      <GlassCard style={styles.rowCard}>
         {nearestStatus === 'loading' && <ActivityIndicator />}
         {nearestStatus === 'empty' && (
           <Text style={styles.rowMuted} testID="home-up-next-empty">
@@ -433,10 +434,10 @@ export default function HomeScreen() {
             <Text style={styles.rowChevron}>›</Text>
           </View>
         )}
-      </View>
+      </GlassCard>
 
       <Text style={styles.sectionLabel}>LATEST ALERT</Text>
-      <View style={styles.rowCard}>
+      <GlassCard style={styles.rowCard}>
         {alertStatus === 'loading' && <ActivityIndicator />}
         {alertStatus === 'error' && (
           <Text style={styles.rowMuted} testID="home-latest-alert-error">
@@ -463,7 +464,7 @@ export default function HomeScreen() {
             <Text style={styles.rowChevron}>›</Text>
           </View>
         )}
-      </View>
+      </GlassCard>
     </ScreenContainer>
   );
 }
@@ -480,10 +481,7 @@ const styles = StyleSheet.create({
   settingsGlyph: {
     fontSize: 16,
   },
-  // Translucent so the coral-to-purple gradient reads through, per the mockup;
-  // the previous opaque white cards flattened the whole screen.
   weatherCard: {
-    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
@@ -527,7 +525,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   readyCard: {
-    ...glassCard,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.lg,
@@ -564,7 +561,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   rowCard: {
-    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.lg,
   },

@@ -229,13 +229,25 @@ export default function TripSwitcher() {
           </Pressable>
         ))}
 
-        <Pressable
-          style={styles.addChip}
-          onPress={openCreateModal}
-          testID="trip-add-button"
-        >
-          <Text style={styles.addChipText}>+</Text>
-        </Pressable>
+        {trips.length === 0 ? (
+          // First run has nothing to switch between, so the only sensible action
+          // is "make a trip" — a bare "+" hid the one thing the user should do.
+          <Pressable
+            style={styles.addChipProminent}
+            onPress={openCreateModal}
+            testID="trip-add-button"
+          >
+            <Text style={styles.addChipPromptText}>＋ New trip</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            style={styles.addChip}
+            onPress={openCreateModal}
+            testID="trip-add-button"
+          >
+            <Text style={styles.addChipText}>+</Text>
+          </Pressable>
+        )}
       </ScrollView>
 
       <Modal visible={mode !== null} transparent animationType="fade">
@@ -440,6 +452,17 @@ const styles = StyleSheet.create({
   addChipText: {
     fontSize: 18,
     fontWeight: '600',
+    color: colors.textOnGradient,
+  },
+  addChipProminent: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+  },
+  addChipPromptText: {
+    fontSize: 15,
+    fontWeight: '700',
     color: colors.textOnGradient,
   },
   modalOverlay: {

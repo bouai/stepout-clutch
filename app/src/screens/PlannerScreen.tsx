@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 
+import GlassCard from '../components/GlassCard';
 import ListState, { type LoadStatus } from '../components/ListState';
 import ScreenContainer from '../components/ScreenContainer';
 import SwipeRow from '../components/SwipeRow';
@@ -26,7 +27,7 @@ import type {
   InventoryItem,
   Weather,
 } from '../types/models';
-import { glassCard, colors, radius, spacing } from '../theme';
+import { colors, radius, spacing } from '../theme';
 
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
@@ -347,7 +348,7 @@ export default function PlannerScreen() {
     >
       <TripSwitcher />
 
-      <View style={styles.card}>
+      <GlassCard style={styles.card}>
         <View style={styles.weatherSection}>
           {weatherStatus === 'loading' && <ActivityIndicator />}
           {weatherStatus === 'ready' && weather && (
@@ -366,9 +367,9 @@ export default function PlannerScreen() {
             </Text>
           )}
         </View>
-      </View>
+      </GlassCard>
 
-      <View style={[styles.card, styles.checklistCard]}>
+      <GlassCard style={[styles.card, styles.checklistCard]}>
         <View style={styles.checklistHeader}>
           <Text style={styles.sectionTitle}>Checklist</Text>
           <Pressable onPress={openAddModal} testID="add-item-button">
@@ -456,7 +457,7 @@ export default function PlannerScreen() {
             </View>
           ))}
         </View>
-      </View>
+      </GlassCard>
 
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -532,7 +533,6 @@ export default function PlannerScreen() {
 
 const styles = StyleSheet.create({
   card: {
-    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
@@ -565,9 +565,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.textPrimary,
   },
+  // A filled coral pill so the primary "add" action reads on the gradient,
+  // instead of coral text lost against a coral background.
   addButton: {
-    color: colors.accent,
-    fontWeight: '600',
+    color: colors.textOnGradient,
+    fontWeight: '700',
+    backgroundColor: colors.accent,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
   },
   checklistSection: {
     gap: 8,

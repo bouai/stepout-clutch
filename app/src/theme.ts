@@ -13,6 +13,9 @@ export const colors = {
   /** Translucent card, per the mockups — the gradient shows through. */
   cardTranslucent: 'rgba(255,255,255,0.18)',
   cardTranslucentBorder: 'rgba(255,255,255,0.28)',
+  /** Frosted-glass card (see GlassCard): a light rim over a dark blur+scrim. */
+  glassRim: 'rgba(255,255,255,0.22)',
+  glassScrim: 'rgba(24,18,40,0.38)',
   ringTrack: 'rgba(26,26,46,0.12)',
   ringTrackOnGlass: 'rgba(255,255,255,0.25)',
   sectionLabel: 'rgba(255,255,255,0.75)',
@@ -60,25 +63,6 @@ export const cardShadow = {
   elevation: 4,
 } as const;
 
-/**
- * The frosted-glass surface from the design mockups: translucent so the
- * coral-to-purple gradient glows through, with a faint light rim and a soft
- * drop shadow to lift it off the background. Content on top uses the
- * `textOnGradient` / `textOnGradientMuted` (white) text tokens.
- *
- * Spread this into a screen's card style, then add its own `padding` /
- * `marginBottom`. Modals and other focused input surfaces deliberately keep
- * the opaque white `colors.card` instead — dark text on frosted glass over a
- * bright gradient is hard to read while typing.
- */
-export const glassCard = {
-  backgroundColor: colors.cardTranslucent,
-  borderWidth: 1,
-  borderColor: colors.cardTranslucentBorder,
-  borderRadius: radius.card,
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 6 },
-  shadowOpacity: 0.12,
-  shadowRadius: 14,
-  elevation: 3,
-} as const;
+// The frosted-glass surface lives in the `GlassCard` component now (it needs a
+// real BlurView, which a plain style object can't provide). A flat translucent
+// fill read as washed-out mud over the bright top of the gradient on device.

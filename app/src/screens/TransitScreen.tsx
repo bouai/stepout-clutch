@@ -17,6 +17,7 @@ import MapCanvas, {
   type Coordinate,
 } from '../components/MapCanvas';
 
+import GlassCard from '../components/GlassCard';
 import ListState, { type LoadStatus } from '../components/ListState';
 import PlaceSearch, { type Place } from '../components/PlaceSearch';
 import ScreenContainer from '../components/ScreenContainer';
@@ -26,7 +27,7 @@ import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
 import { useCachedResource } from '../hooks/useCachedResource';
 import type { Distance, SavedDestination } from '../types/models';
-import { cardShadow, glassCard, colors, radius, spacing } from '../theme';
+import { cardShadow, colors, radius, spacing } from '../theme';
 
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
@@ -257,6 +258,10 @@ export default function TransitScreen() {
         />
       </View>
 
+      <Text style={styles.mapHint}>
+        Can't find it by name? Tap the map to drop a pin.
+      </Text>
+
       <View style={styles.mapCard}>
         <View style={styles.mapSection}>
         {currentLocation ? (
@@ -298,8 +303,10 @@ export default function TransitScreen() {
         <Text style={styles.note}>Using default location</Text>
       )}
 
-      <View style={[styles.card, styles.listCard]}>
-        <View style={styles.listSection}>
+      <GlassCard
+        style={[styles.card, listStatus === 'ready' && styles.listCard]}
+      >
+        <View style={listStatus === 'ready' ? styles.listSection : undefined}>
           <ListState
             status={listStatus}
             emptyMessage="No saved destinations yet"
@@ -343,10 +350,10 @@ export default function TransitScreen() {
             />
           )}
         </View>
-      </View>
+      </GlassCard>
 
       {selected && (
-        <View style={[styles.card, styles.distanceSection]}>
+        <GlassCard style={[styles.card, styles.distanceSection]}>
           {distanceStatus === 'loading' && <ActivityIndicator />}
           {distanceStatus === 'ready' && distance && (
             <Text style={styles.distanceText} testID="distance-summary">
@@ -358,7 +365,7 @@ export default function TransitScreen() {
               Could not calculate distance
             </Text>
           )}
-        </View>
+        </GlassCard>
       )}
 
       <Modal visible={pendingLocation !== null} transparent animationType="fade">
@@ -421,8 +428,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     zIndex: 10,
   },
+  mapHint: {
+    color: colors.textOnGradientMuted,
+    fontSize: 12,
+    marginBottom: spacing.sm,
+  },
   card: {
-    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.md,
   },

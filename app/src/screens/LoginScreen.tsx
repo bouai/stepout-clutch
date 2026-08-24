@@ -74,7 +74,7 @@ export default function LoginScreen() {
             ? 'Sign in with your email to sync your trips.'
             : emailEnabled
               ? `We sent a sign-in link to ${email.trim()}.`
-              : 'Dev mode: no email is sent — continue below.'}
+              : 'Almost there — tap continue to finish signing in.'}
         </Text>
 
         {stage === 'email' ? (
@@ -97,7 +97,7 @@ export default function LoginScreen() {
               testID="login-send-button"
             >
               {busy ? (
-                <ActivityIndicator color={colors.accent} />
+                <ActivityIndicator color={colors.textOnGradient} />
               ) : (
                 <Text style={styles.primaryButtonText}>Send sign-in link</Text>
               )}
@@ -113,7 +113,7 @@ export default function LoginScreen() {
                 testID="login-continue-button"
               >
                 {busy ? (
-                  <ActivityIndicator color={colors.accent} />
+                  <ActivityIndicator color={colors.textOnGradient} />
                 ) : (
                   <Text style={styles.primaryButtonText}>Continue</Text>
                 )}
@@ -170,17 +170,19 @@ const styles = StyleSheet.create({
     color: colors.textOnGradient,
     fontSize: 16,
   },
+  // A solid coral CTA, per the mockup — the earlier white pill at 0.6 opacity
+  // (its disabled state) read as a broken, greyed-out button.
   primaryButton: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.accent,
     borderRadius: radius.pill,
     paddingVertical: 16,
     alignItems: 'center',
   },
   buttonDisabled: {
-    opacity: 0.6,
+    opacity: 0.45,
   },
   primaryButtonText: {
-    color: colors.accent,
+    color: colors.textOnGradient,
     fontWeight: '700',
     fontSize: 16,
   },

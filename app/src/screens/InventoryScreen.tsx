@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 
+import GlassCard from '../components/GlassCard';
 import ListState, { type LoadStatus } from '../components/ListState';
 import ScreenContainer from '../components/ScreenContainer';
 import SwipeRow from '../components/SwipeRow';
@@ -19,7 +20,7 @@ import { useTripContext } from '../context/TripContext';
 import { useCachedResource, invalidateResource } from '../hooks/useCachedResource';
 import { apiRequest, describeError } from '../api';
 import type { InventoryCategory, InventoryItem } from '../types/models';
-import { glassCard, colors, radius, spacing, typography } from '../theme';
+import { colors, radius, spacing, typography } from '../theme';
 
 const INVENTORY_CATEGORIES: InventoryCategory[] = [
   'electronics',
@@ -212,7 +213,7 @@ export default function InventoryScreen() {
 
       <TripSwitcher />
 
-      <View style={[styles.card, styles.listCard]}>
+      <GlassCard style={[styles.card, styles.listCard]}>
         <ListState
           status={status}
           emptyMessage="No inventory items yet"
@@ -247,7 +248,7 @@ export default function InventoryScreen() {
               )}
             </View>
           ))}
-      </View>
+      </GlassCard>
 
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -316,7 +317,6 @@ const styles = StyleSheet.create({
     ...typography.heading,
   },
   card: {
-    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
@@ -327,9 +327,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.textPrimary,
   },
+  // A filled coral pill so the primary "add" action reads on the gradient,
+  // instead of coral text lost against a coral background.
   addButton: {
-    color: colors.accent,
-    fontWeight: '600',
+    color: colors.textOnGradient,
+    fontWeight: '700',
+    backgroundColor: colors.accent,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
   },
   row: {
     paddingVertical: 8,
