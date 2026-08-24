@@ -2,7 +2,7 @@
 
 Living progress-context doc. Update this whenever a phase completes or scope changes — this is the file a fresh session should read first to know where things stand.
 
-_Updated: 2026-08-18 — Phase 11 (caching, drop-a-pin, unified readiness, swipe-to-delete, full glass reskin) code-complete on `claude/round-6-cache-and-pin` ([PR #20](https://github.com/bouai/stepout-clutch/pull/20))._
+_Updated: 2026-08-25 — Phase 11 merged to main. Phase 12 (real frosted glass + device-test UX fixes) code-complete on `claude/round-7-real-glass-ux`, pending dev-client rebuild for device pass._
 
 ## Status legend
 `[x]` done · `[~]` in progress · `[ ]` not started
@@ -167,17 +167,36 @@ Branch `claude/round-6-cache-and-pin` ([PR #20](https://github.com/bouai/stepout
 
 **Gates:** 167 pytest (from 165), 119 frontend tests, `tsc --noEmit` clean. Web-verified in the Expo harness (glass surfaces + white text confirmed via computed styles; swipe reveal confirmed).
 
+## Phase 12 — Real frosted glass + device-test UX polish `[x]` code complete (2026-08-25), device pass pending
+
+Branch `claude/round-7-real-glass-ux` (commit 673ad64). Acts on what the device pass revealed: the glass design failed on a real screen, and the user journey was broken for first-run.
+
+**Glass redesign.** The previous "glass" was a flat `rgba(255,255,255,0.18)` fill with no blur — on device over the bright coral top, it muddied into washed-out pink and white text failed contrast. Replaced with a real `GlassCard` component built on `expo-blur`'s `BlurView` (genuine backdrop blur, `intensity=24`) plus a dark scrim (`rgba(24,18,40,0.38)`) as a contrast floor, so white text stays readable everywhere the card sits on the gradient — brightest coral included. All content cards on Home, Plan, Pack, Go, Track now use `GlassCard`; modals and input surfaces stay opaque white with dark text. Web-verified: real `backdrop-filter: blur(4.8px)` rendering on all four Home cards, no runtime errors.
+
+**UX polish.**
+- Login journey now hides "Dev mode: no email is sent" plumbing behind friendly copy ("Almost there — tap continue to finish signing in").
+- "+ Add" buttons and login CTA changed from coral text (invisible on coral background) or a 0.6-opacity white pill (read as disabled) to solid coral pills with white text — reads clearly everywhere.
+- First run with no trips now shows a labelled **"＋ New trip"** pill instead of a bare "+", making the only sensible first action obvious.
+- Empty destination/trigger lists no longer stretch into giant hollow boxes — cards collapse to content height until rows appear.
+- Search with no results now points to the pin-drop fallback ("No matches — free maps miss many offices. Try a nearby landmark, or drop a pin on the map below") instead of dead-ending, and Go/Track screens carry a "tap the map to drop a pin" hint — free OSM genuinely can't find most Indian offices by name, so pin-drop is the reliable path and is now discoverable.
+- Onboarding is wired and works (Welcome → Location → Notifications flow); it didn't re-show on phone because a past build marked it seen — a fresh EAS dev-client build will run it again.
+
+**Gates:** 119 frontend tests (no new ones — all features are visible-only), `tsc --noEmit` clean. No changes to backend or data model. Metro reload only; the native `expo-blur` module requires a dev-client rebuild before this can run on-device.
+
+**Next step:** `npx eas-cli build --profile development --platform android` from `app/` (~15 min), install new APK on phone, device-pass all phases. Then either merge to `main` or flag regressions.
+
 ## Next up
 
-- **Device pass** on Phase 9 + 10 + 11 (Smart Setup, commute intelligence, auth, caching, drop-a-pin, swipe, glass). Mostly a Metro reload; confirm nothing regressed natively. Background geofencing's exit bookend and the unpacked-items notification can only be seen on hardware; the swipe gesture *feel* (open threshold, scroll-vs-swipe arbitration) needs a real thumb.
+- **EAS dev-client rebuild** with `expo-blur` included. Phase 12 requires native modules (`npx eas-cli build --profile development --platform android`, ~15 min).
+- **Device pass** on Phase 9 + 10 + 11 + 12 (Smart Setup, commute intelligence, auth, caching, drop-a-pin, swipe, real glass). Post-rebuild, test all tabs, tap maps to drop pins, swipe rows left, watch glass cards over the gradient, verify no regressions from phases 9–11.
 - **Deploy** (still deferred). `server/render.yaml` is ready and now carries the `EMAIL_SENDER` hook; deploying unblocks off-LAN use and real emailed magic links.
 
 ## Known risks
 
-- **Open:** no device pass yet for Phase 9's Smart Setup (JS-only, so just a Metro reload, not a rebuild). The web harness verified the flow, but the phone pass is still owed.
-- **Open:** two free third-party services are on the critical path — OpenFreeMap (tiles) and Photon (geocoding). Both keyless, both run by others; swappable in one place each (`MAP_STYLE_URL`, `PHOTON_URL`).
-- **Open:** no device pass yet for Phase 8's earlier state. MapLibre and background-location changes both need a native rebuild, and the geofence baseline fix can only be confirmed by walking a real boundary.
-- **Open:** the backend is not deployed, so only devices on this machine's LAN can use the app and it cannot be handed to a tester. `server/render.yaml` is ready; deploying needs a Render account.
+- **Open:** Phase 12 added a native module (`expo-blur`), requiring an EAS dev-client rebuild before device testing can proceed. The web harness verified the glass rendering (real `backdrop-filter: blur`), but the phone pass is still owed.
+- **Open:** no device pass yet for Phases 9–12 combined. Background geofencing's exit bookend and the unpacked-items notification can only be seen on hardware; swipe gesture *feel* (open threshold, scroll-vs-swipe arbitration) needs a real thumb.
+- **Third-party services on the critical path:** OpenFreeMap (tiles) and Photon (geocoding). Both keyless, both run by others; swappable in one place each. If either degrades, maps or search go with it.
+- **Open:** the backend is not deployed, so only devices on this machine's LAN can use the app. `server/render.yaml` is ready; deploying needs a Render account.
 - Free-tier deployment caveats that will affect testers: the service sleeps after ~15 min idle (~50s cold start, which looks like a timeout in the app), and free Postgres expires after 30 days.
 - **No migration tooling.** `create_all` only creates missing tables; it never adds a column to an existing one. After a schema change run `python seed_demo.py --reset`.
 - **Third-party free services now on the critical path.** OpenFreeMap serves map tiles and Photon serves geocoding; both are free, keyless and run by others. If either degrades, maps or search go with it. Both are swappable in one place (`MAP_STYLE_URL` in `app/src/components/MapCanvas.tsx`, `PHOTON_URL` in `server/app/routers/places.py`).
