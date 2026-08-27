@@ -76,7 +76,9 @@ export default function ProgressRing({
           </Text>
         </View>
       </View>
-      <Text style={[styles.label, { color: textColor }]}>{label}</Text>
+      {label !== '' && (
+        <Text style={[styles.label, { color: textColor }]}>{label}</Text>
+      )}
     </View>
   );
 }

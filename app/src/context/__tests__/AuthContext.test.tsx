@@ -78,6 +78,9 @@ describe('AuthContext + LoginScreen', () => {
     const view = await renderApp();
     await waitFor(() => expect(view.getByTestId('ready').props.children).toBe('true'));
 
+    // The welcome screen reveals the email path behind "Sync with email".
+    fireEvent.press(view.getByTestId('login-email-toggle'));
+    await settle();
     fireEvent.changeText(view.getByTestId('login-email-input'), 'new@example.com');
     await settle();
     fireEvent.press(view.getByTestId('login-send-button'));
@@ -96,6 +99,8 @@ describe('AuthContext + LoginScreen', () => {
     const view = await renderApp();
     await waitFor(() => expect(view.getByTestId('ready').props.children).toBe('true'));
 
+    fireEvent.press(view.getByTestId('login-email-toggle'));
+    await settle();
     fireEvent.changeText(view.getByTestId('login-email-input'), 'x@y.com');
     await settle();
     fireEvent.press(view.getByTestId('login-send-button'));

@@ -52,12 +52,16 @@ function AuthedApp() {
   }
 
   if (onboardingComplete === null) return <Loading />;
-  if (!onboardingComplete) {
-    return <OnboardingFlow onComplete={completeOnboarding} />;
-  }
+
+  // TripProvider wraps both onboarding and the app so the guided setup can
+  // actually create the user's first trip (and the tabs then share that state).
   return (
     <TripProvider>
-      <RootNavigator />
+      {!onboardingComplete ? (
+        <OnboardingFlow onComplete={completeOnboarding} />
+      ) : (
+        <RootNavigator />
+      )}
     </TripProvider>
   );
 }

@@ -85,8 +85,8 @@ describe('screen scroll containers', () => {
     ]);
     const view = await renderWithProviders(<InventoryScreen />);
 
-    await waitFor(() => expect(view.getByText(/Item 1 \(/)).toBeTruthy());
-    expect(view.getByText(/Item 30 \(/)).toBeTruthy();
+    await waitFor(() => expect(view.getByText('Item 1')).toBeTruthy());
+    expect(view.getByText('Item 30')).toBeTruthy();
   });
 
   it('Active Tracking keeps a fixed map but scrolls its trigger list', async () => {

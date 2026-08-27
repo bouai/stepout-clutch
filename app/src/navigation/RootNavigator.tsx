@@ -15,7 +15,16 @@ const Tab = createBottomTabNavigator();
 function TabIcon({ glyph, focused }: { glyph: string; focused: boolean }) {
   return (
     <View style={[styles.iconWrapper, focused && styles.iconWrapperActive]}>
-      <Text style={styles.iconGlyph}>{glyph}</Text>
+      <Text style={[styles.iconGlyph, focused && styles.iconGlyphActive]}>{glyph}</Text>
+    </View>
+  );
+}
+
+/** A dark translucent fill behind the floating nav pill. */
+function NavBackground() {
+  return (
+    <View style={styles.navBgWrapper} pointerEvents="none">
+      <View style={[StyleSheet.absoluteFill, styles.navBgFill]} />
     </View>
   );
 }
@@ -28,13 +37,12 @@ export default function RootNavigator() {
       <Tab.Navigator
         screenOptions={{
           headerShown: false,
-          // Lift the floating pill clear of the gesture bar; a fixed 24pt
-          // offset put it underneath on gesture-navigation devices.
           tabBarStyle: [styles.tabBar, { bottom: insets.bottom + 12 }],
           tabBarActiveTintColor: colors.navIconActive,
           tabBarInactiveTintColor: colors.navIcon,
           tabBarLabelStyle: styles.tabBarLabel,
           tabBarItemStyle: styles.tabBarItem,
+          tabBarBackground: () => <NavBackground />,
         }}
       >
         <Tab.Screen
@@ -49,7 +57,7 @@ export default function RootNavigator() {
           name="Planner"
           component={PlannerScreen}
           options={{
-            title: 'Plan',
+            title: 'Planner',
             tabBarIcon: ({ focused }) => <TabIcon glyph="📝" focused={focused} />,
           }}
         />
@@ -57,15 +65,15 @@ export default function RootNavigator() {
           name="Transit"
           component={TransitScreen}
           options={{
-            title: 'Go',
-            tabBarIcon: ({ focused }) => <TabIcon glyph="🧭" focused={focused} />,
+            title: 'Map',
+            tabBarIcon: ({ focused }) => <TabIcon glyph="🗺" focused={focused} />,
           }}
         />
         <Tab.Screen
           name="Active Tracking"
           component={ActiveTrackingScreen}
           options={{
-            title: 'Track',
+            title: 'Live',
             tabBarIcon: ({ focused }) => <TabIcon glyph="📍" focused={focused} />,
           }}
         />
@@ -73,7 +81,7 @@ export default function RootNavigator() {
           name="Inventory"
           component={InventoryScreen}
           options={{
-            title: 'Pack',
+            title: 'Inventory',
             tabBarIcon: ({ focused }) => <TabIcon glyph="🎒" focused={focused} />,
           }}
         />
@@ -88,34 +96,52 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     bottom: 24,
-    height: 64,
-    borderRadius: radius.pill,
-    backgroundColor: colors.navBackground,
+    height: 68,
+    borderRadius: radius.lg,
+    backgroundColor: 'transparent',
     borderTopWidth: 0,
-    elevation: 8,
+    borderWidth: 1,
+    borderColor: colors.navBorder,
+    elevation: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+  },
+  navBgWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+  },
+  navBgFill: {
+    backgroundColor: colors.navBackground,
   },
   tabBarItem: {
-    paddingTop: 6,
+    paddingTop: 8,
   },
   tabBarLabel: {
     fontSize: 11,
     fontWeight: '600',
   },
   iconWrapper: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 40,
+    height: 30,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconWrapperActive: {
-    backgroundColor: colors.navActiveCircle,
+    backgroundColor: colors.accentSoft,
   },
   iconGlyph: {
-    fontSize: 16,
+    fontSize: 17,
+    opacity: 0.7,
+  },
+  iconGlyphActive: {
+    opacity: 1,
   },
 });

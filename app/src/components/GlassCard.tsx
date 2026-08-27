@@ -1,41 +1,67 @@
-import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { colors, radius } from '../theme';
+import { cardShadow, colors, radius } from '../theme';
 
 interface GlassCardProps {
   children: ReactNode;
   /** Layout for the card: padding, margin, flexDirection, gap, minHeight, etc. */
   style?: StyleProp<ViewStyle>;
+  /**
+   * `hero` adds a brighter top sheen and stronger rim for the primary card on a
+   * screen (weather, readiness); `plain` is the default row/section card.
+   */
+  tone?: 'plain' | 'hero';
+  /** Drop the ambient shadow (e.g. cards nested inside another surface). */
+  flat?: boolean;
   testID?: string;
 }
 
 /**
- * A real frosted-glass surface, per the design mockups.
+ * A frosted-glass surface — a dark translucent fill so it reads as glass over
+ * the night background, and a hairline rim that catches the light along the
+ * edge. Hero cards get an extra top sheen for depth.
  *
- * The earlier attempt was just `backgroundColor: rgba(255,255,255,0.18)` — a
- * flat transparency with no blur. Over the light coral top of the gradient that
- * muddied into a washed-out pink and white text on it failed contrast. This
- * uses `expo-blur`'s BlurView for an actual backdrop blur, plus a dark scrim as
- * a contrast floor so the white text stays legible wherever the card sits on
- * the gradient — brightest coral included. If a device can't blur, the scrim
- * alone still yields a readable dark-translucent card.
+ * Uses a solid translucent fill rather than a native backdrop blur: on the dark
+ * background the blur is barely perceptible, and requiring the native `expo-blur`
+ * module crashed the app on dev-client builds that don't bundle it.
  *
- * The blur and scrim are absolutely positioned, so the caller's `style`
- * (padding, margin, flex layout) applies to the children exactly as it would on
- * a plain View.
+ * The fill/sheen layers are absolutely positioned, so the caller's `style`
+ * (padding, margin, flex layout) applies to the children exactly as on a plain
+ * View.
  */
-export default function GlassCard({ children, style, testID }: GlassCardProps) {
+export default function GlassCard({
+  children,
+  style,
+  tone = 'plain',
+  flat = false,
+  testID,
+}: GlassCardProps) {
+  const hero = tone === 'hero';
   return (
-    <View style={[styles.base, style]} testID={testID}>
-      <BlurView
-        intensity={24}
-        tint="dark"
-        style={styles.layer}
+    <View
+      style={[
+        styles.base,
+        hero ? styles.rimHero : styles.rim,
+        !flat && cardShadow,
+        style,
+      ]}
+      testID={testID}
+    >
+      <View
+        style={[styles.fill, { backgroundColor: colors.glassFill }]}
         pointerEvents="none"
       />
-      <View style={styles.scrim} pointerEvents="none" />
+      {hero && (
+        <LinearGradient
+          colors={['rgba(255,255,255,0.14)', 'rgba(255,255,255,0.02)', 'transparent']}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={styles.layer}
+          pointerEvents="none"
+        />
+      )}
       {children}
     </View>
   );
@@ -46,8 +72,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colors.glassRim,
   },
+  rim: { borderColor: colors.glassBorder },
+  rimHero: { borderColor: colors.glassBorderStrong },
   layer: {
     position: 'absolute',
     top: 0,
@@ -55,12 +82,11 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
-  scrim: {
+  fill: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: colors.glassScrim,
   },
 });

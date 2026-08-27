@@ -3,18 +3,18 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 
 import { useTripContext, type TripCoords } from '../context/TripContext';
 import type { TripType } from '../types/models';
-import { cardShadow, colors, radius, spacing } from '../theme';
+import { colors, radius, spacing } from '../theme';
+import { Button, Chip, TextField, Toggle } from './ui';
+import Sheet from './Sheet';
 import MapPicker from './MapPicker';
 import PlaceSearch from './PlaceSearch';
 
@@ -30,7 +30,12 @@ const TRIP_TYPES: { value: TripType; label: string }[] = [
   { value: 'other', label: 'Other' },
 ];
 
-export default function TripSwitcher() {
+interface TripSwitcherProps {
+  /** Optional external control of the create sheet (used by onboarding). */
+  createRequestId?: number;
+}
+
+export default function TripSwitcher({ createRequestId }: TripSwitcherProps) {
   const { trips, currentTripId, selectTrip, createTrip, renameTrip, deleteTrip } =
     useTripContext();
 
@@ -81,11 +86,6 @@ export default function TripSwitcher() {
     resetForm();
   }
 
-  /**
-   * A trip without coordinates cannot drive Home's weather card — it silently
-   * falls back to the device's location, which is wrong for a trip you have
-   * not left for yet.
-   */
   async function captureLocation() {
     setLocating(true);
     setError(null);
@@ -137,8 +137,6 @@ export default function TripSwitcher() {
     closeModal();
     setSubmitting(false);
 
-    // Tell the user what the template did — this is the "it set itself up"
-    // moment, and it also explains why their tabs are suddenly populated.
     if (result.applied) {
       const { checklistAdded, inventoryAdded, zonesAdded, weatherCondition } =
         result.applied;
@@ -151,15 +149,10 @@ export default function TripSwitcher() {
         weatherCondition && weatherCondition !== 'clear'
           ? `\n\nAdded for ${weatherCondition} in the forecast.`
           : '';
-      Alert.alert(
-        `${trimmed} is ready`,
-        `Set up ${parts.join(', ')}.${weatherNote}`
-      );
+      Alert.alert(`${trimmed} is ready`, `Set up ${parts.join(', ')}.${weatherNote}`);
     }
   }
 
-  // Long-press is the only affordance on a chip that small; a visible menu
-  // would crowd the switcher, which the mockups keep to a single row.
   function openChipActions(tripId: number, tripName: string) {
     Alert.alert(tripName, undefined, [
       { text: 'Rename', onPress: () => openRenameModal(tripId, tripName) },
@@ -199,39 +192,25 @@ export default function TripSwitcher() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.row}
       >
-        <Pressable
-          style={[styles.chip, currentTripId === null && styles.chipSelected]}
+        <Chip
+          label="All"
+          selected={currentTripId === null}
           onPress={() => selectTrip(null)}
           testID="trip-chip-all"
-        >
-          <Text
-            style={currentTripId === null ? styles.chipTextSelected : styles.chipText}
-          >
-            All
-          </Text>
-        </Pressable>
+        />
 
         {trips.map((trip) => (
-          <Pressable
+          <Chip
             key={trip.id}
-            style={[styles.chip, currentTripId === trip.id && styles.chipSelected]}
+            label={trip.isRecurring ? `🔁 ${trip.name}` : trip.name}
+            selected={currentTripId === trip.id}
             onPress={() => selectTrip(trip.id)}
             onLongPress={() => openChipActions(trip.id, trip.name)}
             testID={`trip-chip-${trip.id}`}
-          >
-            <Text
-              style={
-                currentTripId === trip.id ? styles.chipTextSelected : styles.chipText
-              }
-            >
-              {trip.isRecurring ? `🔁 ${trip.name}` : trip.name}
-            </Text>
-          </Pressable>
+          />
         ))}
 
         {trips.length === 0 ? (
-          // First run has nothing to switch between, so the only sensible action
-          // is "make a trip" — a bare "+" hid the one thing the user should do.
           <Pressable
             style={styles.addChipProminent}
             onPress={openCreateModal}
@@ -250,154 +229,146 @@ export default function TripSwitcher() {
         )}
       </ScrollView>
 
-      <Modal visible={mode !== null} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.sectionTitle}>
-              {mode === 'rename' ? 'Rename Trip' : 'New Trip'}
-            </Text>
-
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Trip name"
-              placeholderTextColor={colors.textSecondary}
-              value={name}
-              onChangeText={setName}
-              autoFocus
-              testID="trip-name-input"
+      <Sheet
+        visible={mode !== null}
+        onClose={closeModal}
+        title={mode === 'rename' ? 'Rename trip' : 'New trip'}
+        subtitle={
+          mode === 'create'
+            ? "Pick a type and we'll set up a starter list for you."
+            : undefined
+        }
+        testID="trip-sheet"
+        footer={
+          <>
+            <Button
+              label="Cancel"
+              variant="secondary"
+              onPress={closeModal}
+              testID="trip-modal-cancel-button"
+              style={styles.footerBtn}
             />
+            <Button
+              label={mode === 'rename' ? 'Save' : 'Create trip'}
+              onPress={submit}
+              disabled={!canSubmit}
+              loading={submitting}
+              testID="trip-modal-create-button"
+              style={styles.footerBtn}
+            />
+          </>
+        }
+      >
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Trip name</Text>
+          <TextField
+            value={name}
+            onChangeText={setName}
+            placeholder="e.g. Office"
+            autoFocus
+            testID="trip-name-input"
+          />
+        </View>
 
-            {mode === 'create' && (
-              <>
-                <Text style={styles.pickerLabel}>
-                  Trip type — we'll set up a starter list
-                </Text>
-                <View style={styles.typeGrid}>
-                  {TRIP_TYPES.map((type) => {
-                    const selected = tripType === type.value;
-                    return (
-                      <Pressable
-                        key={type.value}
-                        style={[styles.typeChip, selected && styles.typeChipSelected]}
-                        onPress={() => setTripType(selected ? null : type.value)}
-                        testID={`trip-type-${type.value}`}
-                      >
-                        <Text
-                          style={
-                            selected ? styles.typeChipTextSelected : styles.typeChipText
-                          }
-                        >
-                          {type.label}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-
-                <Pressable
-                  style={styles.recurringRow}
-                  onPress={() => setIsRecurring((prev) => !prev)}
-                  testID="trip-recurring-toggle"
-                >
-                  <Text style={styles.recurringCheckbox}>
-                    {isRecurring ? '☑' : '☐'}
-                  </Text>
-                  <Text style={styles.recurringLabel}>
-                    🔁 Repeats daily — reset the checklist each morning
-                  </Text>
-                </Pressable>
-              </>
-            )}
-
-            {coords ? (
-              <View style={styles.locationChosen} testID="trip-location-chosen">
-                <Text style={styles.locationText}>
-                  📍 {coords.locationName ??
-                    `${coords.latitude.toFixed(3)}, ${coords.longitude.toFixed(3)}`}
-                </Text>
-                <Pressable
-                  onPress={() => setCoords(null)}
-                  testID="trip-clear-location"
-                >
-                  <Text style={styles.clearLocationText}>Change</Text>
-                </Pressable>
+        {mode === 'create' && (
+          <>
+            <View style={styles.field}>
+              <Text style={styles.fieldLabel}>Trip type</Text>
+              <View style={styles.typeGrid}>
+                {TRIP_TYPES.map((type) => (
+                  <Chip
+                    key={type.value}
+                    label={type.label}
+                    selected={tripType === type.value}
+                    onPress={() =>
+                      setTripType(tripType === type.value ? null : type.value)
+                    }
+                    testID={`trip-type-${type.value}`}
+                  />
+                ))}
               </View>
-            ) : (
-              <>
-                <PlaceSearch
-                  placeholder="Search a place for this trip"
-                  onSelect={(place) =>
-                    setCoords({
-                      latitude: place.latitude,
-                      longitude: place.longitude,
-                      locationName: place.context
-                        ? `${place.name}, ${place.context}`
-                        : place.name,
-                    })
-                  }
-                  testIDPrefix="trip-place-search"
-                />
-                <View style={styles.locationOptions}>
-                  <Pressable
-                    style={[styles.locationRow, styles.locationHalf]}
-                    onPress={captureLocation}
-                    disabled={locating}
-                    testID="trip-use-location-button"
-                  >
-                    {locating ? (
-                      <ActivityIndicator size="small" />
-                    ) : (
-                      <Text style={styles.locationText}>📍 Current</Text>
-                    )}
-                  </Pressable>
-                  <Pressable
-                    style={[styles.locationRow, styles.locationHalf]}
-                    onPress={() => setPickerVisible(true)}
-                    testID="trip-pick-map-button"
-                  >
-                    <Text style={styles.locationText}>🗺 Pick on map</Text>
-                  </Pressable>
-                </View>
-                <Text style={styles.pickHint}>
-                  Can't find it by name? Drop a pin on the map.
+            </View>
+
+            <View style={styles.recurringRow}>
+              <View style={styles.recurringText}>
+                <Text style={styles.recurringLabel}>🔁 Repeats daily</Text>
+                <Text style={styles.recurringHint}>
+                  Resets the checklist each morning.
                 </Text>
-              </>
-            )}
+              </View>
+              <Toggle
+                value={isRecurring}
+                onValueChange={setIsRecurring}
+                testID="trip-recurring-toggle"
+              />
+            </View>
+          </>
+        )}
 
-            <Text style={styles.locationHint}>
-              {tripType && mode === 'create'
-                ? "A location adds weather-based items and an arrival alert."
-                : "Weather on Home uses the trip's location when it has one."}
-            </Text>
-
-            {error && (
-              <Text style={styles.errorText} testID="trip-modal-error">
-                {error}
+        <View style={styles.field}>
+          <Text style={styles.fieldLabel}>Location</Text>
+          {coords ? (
+            <View style={styles.locationChosen} testID="trip-location-chosen">
+              <Text style={styles.locationText}>
+                📍{' '}
+                {coords.locationName ??
+                  `${coords.latitude.toFixed(3)}, ${coords.longitude.toFixed(3)}`}
               </Text>
-            )}
-
-            <View style={styles.modalActions}>
-              <Pressable onPress={closeModal} testID="trip-modal-cancel-button">
-                <Text style={styles.modalActionText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={submit}
-                disabled={!canSubmit}
-                testID="trip-modal-create-button"
-              >
-                <Text
-                  style={[
-                    styles.modalActionText,
-                    !canSubmit && styles.modalActionDisabled,
-                  ]}
-                >
-                  {mode === 'rename' ? 'Save' : 'Create'}
-                </Text>
+              <Pressable onPress={() => setCoords(null)} testID="trip-clear-location">
+                <Text style={styles.clearLocationText}>Change</Text>
               </Pressable>
             </View>
-          </View>
+          ) : (
+            <>
+              <PlaceSearch
+                placeholder="Search a place for this trip"
+                onSelect={(place) =>
+                  setCoords({
+                    latitude: place.latitude,
+                    longitude: place.longitude,
+                    locationName: place.context
+                      ? `${place.name}, ${place.context}`
+                      : place.name,
+                  })
+                }
+                testIDPrefix="trip-place-search"
+              />
+              <View style={styles.locationOptions}>
+                <Pressable
+                  style={[styles.locationRow, styles.locationHalf]}
+                  onPress={captureLocation}
+                  disabled={locating}
+                  testID="trip-use-location-button"
+                >
+                  {locating ? (
+                    <ActivityIndicator size="small" color={colors.accent} />
+                  ) : (
+                    <Text style={styles.locationText}>📍 Current</Text>
+                  )}
+                </Pressable>
+                <Pressable
+                  style={[styles.locationRow, styles.locationHalf]}
+                  onPress={() => setPickerVisible(true)}
+                  testID="trip-pick-map-button"
+                >
+                  <Text style={styles.locationText}>🗺 Pick on map</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
+          <Text style={styles.locationHint}>
+            {tripType && mode === 'create'
+              ? 'A location adds weather-based items and an arrival alert.'
+              : "Weather on Home uses the trip's location when it has one."}
+          </Text>
         </View>
-      </Modal>
+
+        {error && (
+          <Text style={styles.errorText} testID="trip-modal-error">
+            {error}
+          </Text>
+        )}
+      </Sheet>
 
       <MapPicker
         visible={pickerVisible}
@@ -421,126 +392,74 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingRight: spacing.sm,
   },
-  chip: {
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-  },
-  chipSelected: {
-    backgroundColor: colors.card,
-    borderColor: colors.card,
-  },
-  chipText: {
-    color: colors.textOnGradient,
-    fontWeight: '600',
-  },
-  chipTextSelected: {
-    color: colors.textPrimary,
-    fontWeight: '700',
-  },
   addChip: {
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: colors.chipIdleBorder,
+    backgroundColor: colors.chipIdleBg,
     borderRadius: radius.pill,
-    width: 36,
-    height: 36,
+    width: 38,
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addChipText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.textOnGradient,
-  },
-  addChipProminent: {
-    backgroundColor: colors.accent,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 8,
-  },
-  addChipPromptText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.textOnGradient,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    padding: spacing.lg,
-  },
-  modalCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
-    padding: spacing.md,
-    gap: spacing.sm,
-    ...cardShadow,
-  },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: colors.textSecondary,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    color: colors.textPrimary,
-  },
-  pickerLabel: {
-    fontSize: 12,
+    fontSize: 20,
     fontWeight: '600',
     color: colors.textSecondary,
+    lineHeight: 22,
+  },
+  addChipProminent: {
+    backgroundColor: colors.accentSoft,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 9,
+  },
+  addChipPromptText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.accent,
+  },
+  field: { gap: spacing.sm },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: colors.sectionLabel,
   },
   typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
   },
-  typeChip: {
-    borderWidth: 1,
-    borderColor: colors.textSecondary,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 6,
-  },
-  typeChipSelected: {
-    borderColor: colors.accent,
-    backgroundColor: colors.accent,
-  },
-  typeChipText: {
-    color: colors.textPrimary,
-    fontWeight: '600',
-  },
-  typeChipTextSelected: {
-    color: colors.textOnGradient,
-    fontWeight: '700',
-  },
   recurringRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    backgroundColor: colors.chipIdleBg,
+    borderWidth: 1,
+    borderColor: colors.glassBorder,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  recurringText: { flex: 1, gap: 2 },
+  recurringLabel: { fontSize: 15, fontWeight: '600', color: colors.textPrimary },
+  recurringHint: { fontSize: 13, color: colors.textSecondary },
+  locationOptions: {
+    flexDirection: 'row',
     gap: spacing.sm,
   },
-  recurringCheckbox: {
-    fontSize: 18,
-    color: colors.textPrimary,
-  },
-  recurringLabel: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.textPrimary,
-  },
+  locationHalf: { flex: 1 },
   locationRow: {
     borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(255,122,99,0.12)',
+    borderColor: colors.glassBorder,
+    borderRadius: radius.md,
+    backgroundColor: colors.chipIdleBg,
     paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+    paddingVertical: 12,
     alignItems: 'center',
   },
   locationChosen: {
@@ -548,53 +467,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(255,122,99,0.12)',
+    borderColor: colors.accentBorder,
+    borderRadius: radius.md,
+    backgroundColor: colors.accentSoft,
     paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+    paddingVertical: 12,
     gap: spacing.sm,
-  },
-  locationOptions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  locationHalf: {
-    flex: 1,
-  },
-  pickHint: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontStyle: 'italic',
   },
   locationText: {
     color: colors.textPrimary,
     fontWeight: '600',
   },
   clearLocationText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: 'center',
+    fontSize: 13,
+    color: colors.accent,
+    fontWeight: '700',
   },
   locationHint: {
-    fontSize: 11,
-    color: colors.textSecondary,
+    fontSize: 12,
+    color: colors.textTertiary,
   },
   errorText: {
-    fontSize: 12,
+    fontSize: 13,
     color: colors.danger,
   },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: spacing.lg,
-    marginTop: spacing.xs,
-  },
-  modalActionText: {
-    fontWeight: '700',
-    color: colors.accent,
-  },
-  modalActionDisabled: {
-    color: colors.textSecondary,
-  },
+  footerBtn: { flex: 1 },
 });

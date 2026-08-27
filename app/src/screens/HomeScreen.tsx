@@ -4,10 +4,12 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import GlassCard from '../components/GlassCard';
+import GuidanceCard from '../components/GuidanceCard';
 import ProgressRing from '../components/ProgressRing';
 import ScreenContainer from '../components/ScreenContainer';
 import SettingsSheet from '../components/SettingsSheet';
 import TripSwitcher from '../components/TripSwitcher';
+import { SectionLabel } from '../components/ui';
 import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
 import type {
@@ -19,7 +21,7 @@ import type {
   SavedDestination,
   Weather,
 } from '../types/models';
-import { colors, spacing } from '../theme';
+import { colors, radius, spacing } from '../theme';
 import { formatRelativeTime } from '../utils/time';
 
 const DEFAULT_LATITUDE = 28.6139;
@@ -44,6 +46,30 @@ const CONDITION_COPY: Record<string, string> = {
   clear: 'Clear today',
 };
 
+function weatherIcon(condition: string): string {
+  switch (condition) {
+    case 'rain':
+      return '🌧';
+    case 'snow':
+      return '❄️';
+    case 'extreme-heat':
+      return '☀️';
+    case 'extreme-cold':
+      return '🥶';
+    case 'wind':
+      return '💨';
+    default:
+      return '⛅';
+  }
+}
+
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
 interface LatestAlert {
   event: GeofenceEvent;
   triggerLabel: string;
@@ -57,11 +83,7 @@ async function resolveCoordinates(): Promise<{
   try {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
-      return {
-        latitude: DEFAULT_LATITUDE,
-        longitude: DEFAULT_LONGITUDE,
-        usedDefault: true,
-      };
+      return { latitude: DEFAULT_LATITUDE, longitude: DEFAULT_LONGITUDE, usedDefault: true };
     }
     const position = await Location.getCurrentPositionAsync();
     return {
@@ -70,11 +92,7 @@ async function resolveCoordinates(): Promise<{
       usedDefault: false,
     };
   } catch {
-    return {
-      latitude: DEFAULT_LATITUDE,
-      longitude: DEFAULT_LONGITUDE,
-      usedDefault: true,
-    };
+    return { latitude: DEFAULT_LATITUDE, longitude: DEFAULT_LONGITUDE, usedDefault: true };
   }
 }
 
@@ -104,14 +122,6 @@ export default function HomeScreen() {
 
   const tripQuery = currentTripId !== null ? `?tripId=${currentTripId}` : '';
 
-  /**
-   * One pass over every card on the dashboard.
-   *
-   * These used to be five independent effects, two of which each called
-   * `resolveCoordinates()` — so opening Home asked for location permission
-   * twice and took two GPS fixes. Device position is now resolved once and
-   * shared by the weather and "up next" cards.
-   */
   const loadDashboard = useCallback(
     async (isCancelled: () => boolean) => {
       setWeatherStatus('loading');
@@ -123,8 +133,6 @@ export default function HomeScreen() {
       const device = await resolveCoordinates();
       if (isCancelled()) return;
 
-      // A trip with its own coordinates describes the destination's weather;
-      // otherwise fall back to wherever the device actually is.
       const hasTripCoords =
         currentTrip?.latitude != null && currentTrip?.longitude != null;
       const weatherLat = hasTripCoords ? currentTrip!.latitude! : device.latitude;
@@ -150,9 +158,7 @@ export default function HomeScreen() {
 
       async function loadChecklist() {
         try {
-          const data = await apiRequest<ChecklistItem[]>(
-            `/checklist-items${tripQuery}`
-          );
+          const data = await apiRequest<ChecklistItem[]>(`/checklist-items${tripQuery}`);
           if (!isCancelled()) setChecklistItems(data);
         } catch {
           if (!isCancelled()) setChecklistItems([]);
@@ -163,9 +169,7 @@ export default function HomeScreen() {
 
       async function loadInventory() {
         try {
-          const data = await apiRequest<InventoryItem[]>(
-            `/inventory-items${tripQuery}`
-          );
+          const data = await apiRequest<InventoryItem[]>(`/inventory-items${tripQuery}`);
           if (!isCancelled()) setInventoryItems(data);
         } catch {
           if (!isCancelled()) setInventoryItems([]);
@@ -179,7 +183,6 @@ export default function HomeScreen() {
           const destinations = await apiRequest<SavedDestination[]>(
             `/saved-destinations${tripQuery}`
           );
-
           if (destinations.length === 0) {
             if (!isCancelled()) {
               setNearest(null);
@@ -187,21 +190,16 @@ export default function HomeScreen() {
             }
             return;
           }
-
           const withDistances = await Promise.all(
             destinations.map(async (destination) => {
               const distance = await apiRequest<Distance>(
                 `/saved-destinations/${destination.id}/distance`,
-                {
-                  query: { lat: device.latitude, lon: device.longitude },
-                }
+                { query: { lat: device.latitude, lon: device.longitude } }
               );
               return { destination, distance };
             })
           );
-
           withDistances.sort((a, b) => a.distance.distanceKm - b.distance.distanceKm);
-
           if (!isCancelled()) {
             setNearest(withDistances[0]);
             setNearestStatus('ready');
@@ -216,12 +214,9 @@ export default function HomeScreen() {
 
       async function loadLatestAlert() {
         try {
-          // Scoped like every other card — an unscoped fetch surfaced another
-          // trip's alert while the rest of the dashboard showed this trip.
           const events = await apiRequest<GeofenceEvent[]>('/geofence-events', {
             query: { limit: 1, tripId: currentTripId },
           });
-
           if (events.length === 0) {
             if (!isCancelled()) {
               setLatestAlert(null);
@@ -229,7 +224,6 @@ export default function HomeScreen() {
             }
             return;
           }
-
           const [event] = events;
           let triggerLabel = 'Unknown location';
           try {
@@ -238,9 +232,8 @@ export default function HomeScreen() {
             );
             triggerLabel = trigger.label;
           } catch {
-            // Keep the fallback label if the trigger lookup fails.
+            // Keep the fallback label.
           }
-
           if (!isCancelled()) {
             setLatestAlert({ event, triggerLabel });
             setAlertStatus('ready');
@@ -282,17 +275,12 @@ export default function HomeScreen() {
 
   const checkedCount = checklistItems.filter((item) => item.isChecked).length;
   const packedCount = inventoryItems.filter((item) => item.isPacked).length;
-
-  // The "did you pack everything?" nudge: only meaningful for a specific trip
-  // with something still to pack.
   const unpackedItems = inventoryItems.filter((item) => !item.isPacked);
-  const showReadiness = currentTripId !== null && inventoryItems.length > 0;
 
-  // One readiness figure across checklist + packing — "you're ready when your
-  // trip is ready", rather than two disconnected counters.
   const totalItems = checklistItems.length + inventoryItems.length;
   const doneItems = checkedCount + packedCount;
   const readyPercent = totalItems > 0 ? Math.round((doneItems / totalItems) * 100) : 0;
+  const progressLoading = checklistStatus === 'loading' || inventoryStatus === 'loading';
 
   return (
     <ScreenContainer
@@ -320,24 +308,36 @@ export default function HomeScreen() {
         }}
       />
 
+      <Text style={styles.greeting}>
+        {greeting()} {weather ? weatherIcon(weather.condition) : '👋'}
+      </Text>
+
       <TripSwitcher />
 
-      <GlassCard style={styles.weatherCard}>
-        {weatherStatus === 'loading' && <ActivityIndicator />}
+      <GuidanceCard
+        id="home"
+        title="Your command center"
+        body="Home shows your next trip, the weather where you're headed, and how ready you are — so you can see everything at a glance before you leave."
+      />
+
+      <GlassCard style={styles.weatherCard} tone="hero">
+        {weatherStatus === 'loading' && <ActivityIndicator color={colors.accent} />}
         {weatherStatus === 'ready' && weather && (
           <>
             <Text style={styles.weatherPlace}>
               {currentTrip?.name ?? 'Your location'}
             </Text>
             <View style={styles.weatherRow}>
-              <Text style={styles.weatherTemp} testID="home-weather-summary">
-                {Math.round(weather.temperatureCelsius)}°
-              </Text>
+              <View style={styles.weatherTempWrap}>
+                <Text style={styles.weatherTemp} testID="home-weather-summary">
+                  {Math.round(weather.temperatureCelsius)}°
+                </Text>
+                <Text style={styles.weatherGlyph}>{weatherIcon(weather.condition)}</Text>
+              </View>
               <View style={styles.weatherMeta}>
                 {weather.highCelsius != null && weather.lowCelsius != null && (
                   <Text style={styles.weatherMetaText} testID="home-weather-range">
-                    H:{Math.round(weather.highCelsius)}° L:
-                    {Math.round(weather.lowCelsius)}°
+                    H:{Math.round(weather.highCelsius)}° L:{Math.round(weather.lowCelsius)}°
                   </Text>
                 )}
                 <Text style={styles.weatherMetaText}>
@@ -360,59 +360,63 @@ export default function HomeScreen() {
         )}
       </GlassCard>
 
-      <GlassCard style={styles.readyCard} testID="home-ready">
-        {checklistStatus === 'loading' || inventoryStatus === 'loading' ? (
-          <ActivityIndicator />
+      <GlassCard style={styles.readyCard} testID="home-ready" tone="hero">
+        {progressLoading ? (
+          <ActivityIndicator color={colors.accent} />
         ) : totalItems === 0 ? (
-          <Text style={styles.readyEmpty} testID="home-ready-empty">
-            Add a trip to see how ready you are.
-          </Text>
+          <View style={styles.readyEmptyWrap}>
+            <Text style={styles.readyEmptyTitle} testID="home-ready-empty">
+              Nothing to prepare yet
+            </Text>
+            <Text style={styles.readyEmptyBody}>
+              Create a trip and StepOut builds your checklist, packing list and alerts.
+            </Text>
+          </View>
         ) : (
           <>
-            <ProgressRing
-              label="Ready"
-              completed={doneItems}
-              total={totalItems}
-              size={104}
-              strokeWidth={9}
-              centerLabel={`${readyPercent}%`}
-              onGlass
-              testID="home-ready-ring"
-            />
-            <View style={styles.readySubs}>
-              <Text style={styles.readyHeadline} testID="home-ready-headline">
-                {readyPercent === 100
-                  ? "You're all set."
-                  : `You're ${readyPercent}% ready`}
-              </Text>
-              <Text style={styles.readySubStat} testID="home-checklist-count">
-                ✓ Checklist {checkedCount}/{checklistItems.length}
-              </Text>
-              <Text style={styles.readySubStat} testID="home-packing-count">
-                🎒 Packing {packedCount}/{inventoryItems.length}
-              </Text>
+            <View style={styles.readyTop}>
+              <ProgressRing
+                label=""
+                completed={doneItems}
+                total={totalItems}
+                size={92}
+                strokeWidth={9}
+                centerLabel={`${readyPercent}%`}
+                onGlass
+                testID="home-ready-ring"
+              />
+              <View style={styles.readySubs}>
+                <Text style={styles.readyHeadline} testID="home-ready-headline">
+                  {readyPercent === 100 ? "You're all set 🎉" : 'Ready to go?'}
+                </Text>
+                <Text style={styles.readySubStat} testID="home-checklist-count">
+                  ✓ Checklist {checkedCount}/{checklistItems.length}
+                </Text>
+                <Text style={styles.readySubStat} testID="home-packing-count">
+                  🎒 Packing {packedCount}/{inventoryItems.length}
+                </Text>
+              </View>
             </View>
+            {unpackedItems.length > 0 && (
+              <View style={styles.stillNeed} testID="home-readiness">
+                <Text style={styles.stillNeedLabel} testID="home-readiness-summary">
+                  Still need ({unpackedItems.length}):
+                </Text>
+                <Text style={styles.stillNeedItems} testID="home-readiness-items">
+                  {unpackedItems.map((item) => item.name).join(', ')}
+                </Text>
+              </View>
+            )}
           </>
         )}
       </GlassCard>
 
-      {showReadiness && unpackedItems.length > 0 && (
-        <GlassCard style={styles.rowCard} testID="home-readiness">
-          <Text style={styles.readinessTitle} testID="home-readiness-summary">
-            Still to pack ({unpackedItems.length}):
-          </Text>
-          <Text style={styles.readinessItems} testID="home-readiness-items">
-            {unpackedItems.map((item) => item.name).join(', ')}
-          </Text>
-        </GlassCard>
-      )}
-
-      <Text style={styles.sectionLabel}>UP NEXT</Text>
+      <SectionLabel>Up next</SectionLabel>
       <GlassCard style={styles.rowCard}>
-        {nearestStatus === 'loading' && <ActivityIndicator />}
+        {nearestStatus === 'loading' && <ActivityIndicator color={colors.accent} />}
         {nearestStatus === 'empty' && (
           <Text style={styles.rowMuted} testID="home-up-next-empty">
-            No saved destinations yet
+            No saved places yet — add one on the Map tab to get arrival alerts.
           </Text>
         )}
         {nearestStatus === 'error' && (
@@ -427,18 +431,16 @@ export default function HomeScreen() {
               <Text style={styles.rowTitle} testID="home-up-next-summary">
                 {nearest.destination.label}
               </Text>
-              <Text style={styles.rowSubtitle}>
-                {nearest.distance.distanceKm} km away
-              </Text>
+              <Text style={styles.rowSubtitle}>{nearest.distance.distanceKm} km away</Text>
             </View>
             <Text style={styles.rowChevron}>›</Text>
           </View>
         )}
       </GlassCard>
 
-      <Text style={styles.sectionLabel}>LATEST ALERT</Text>
+      <SectionLabel>Latest alert</SectionLabel>
       <GlassCard style={styles.rowCard}>
-        {alertStatus === 'loading' && <ActivityIndicator />}
+        {alertStatus === 'loading' && <ActivityIndicator color={colors.accent} />}
         {alertStatus === 'error' && (
           <Text style={styles.rowMuted} testID="home-latest-alert-error">
             Could not load alerts
@@ -471,94 +473,136 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   settingsButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: colors.chipIdleBg,
+    borderWidth: 1,
+    borderColor: colors.glassBorder,
   },
   settingsGlyph: {
+    fontSize: 17,
+  },
+  greeting: {
+    color: colors.textSecondary,
     fontSize: 16,
+    fontWeight: '600',
+    marginTop: -spacing.sm,
+    marginBottom: spacing.md,
   },
   weatherCard: {
-    padding: spacing.md,
+    padding: spacing.lg,
     marginBottom: spacing.md,
   },
   weatherPlace: {
-    color: colors.textOnGradientMuted,
-    fontSize: 13,
-    fontWeight: '600',
+    color: colors.textSecondary,
+    fontSize: 14,
+    fontWeight: '700',
   },
   weatherRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
+    marginTop: spacing.xs,
+  },
+  weatherTempWrap: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
   },
   weatherTemp: {
-    color: colors.textOnGradient,
-    fontSize: 56,
+    color: colors.textPrimary,
+    fontSize: 60,
     fontWeight: '800',
-    lineHeight: 62,
+    lineHeight: 64,
+    letterSpacing: -2,
+  },
+  weatherGlyph: {
+    fontSize: 30,
+    marginTop: 6,
   },
   weatherMeta: {
     alignItems: 'flex-end',
-    paddingTop: spacing.sm,
+    paddingTop: spacing.md,
+    gap: 2,
   },
   weatherMetaText: {
-    color: colors.textOnGradientMuted,
-    fontSize: 13,
+    color: colors.textSecondary,
+    fontSize: 14,
     fontWeight: '600',
   },
   weatherCondition: {
-    color: colors.textOnGradient,
+    color: colors.textPrimary,
     fontSize: 15,
     fontWeight: '600',
+    marginTop: spacing.xs,
   },
   weatherError: {
-    color: colors.textOnGradient,
+    color: colors.textPrimary,
     fontSize: 14,
   },
   note: {
     fontSize: 12,
-    color: colors.textOnGradientMuted,
+    color: colors.textTertiary,
     marginTop: 4,
   },
   readyCard: {
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    gap: spacing.md,
+  },
+  readyTop: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.lg,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
-    minHeight: 132,
-    justifyContent: 'center',
   },
   readySubs: {
     flex: 1,
     gap: 6,
   },
   readyHeadline: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '800',
-    color: colors.textOnGradient,
+    color: colors.textPrimary,
     marginBottom: 2,
   },
   readySubStat: {
     fontSize: 14,
-    color: colors.textOnGradientMuted,
+    color: colors.textSecondary,
     fontWeight: '600',
   },
-  readyEmpty: {
-    color: colors.textOnGradientMuted,
-    textAlign: 'center',
+  readyEmptyWrap: {
+    gap: 6,
+    paddingVertical: spacing.sm,
   },
-  // Caps label sitting on the gradient above its card, not a title inside it.
-  sectionLabel: {
-    color: colors.sectionLabel,
-    fontSize: 12,
+  readyEmptyTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.textPrimary,
+  },
+  readyEmptyBody: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    lineHeight: 20,
+  },
+  stillNeed: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.glassBorder,
+    paddingTop: spacing.md,
+    gap: 4,
+  },
+  stillNeedLabel: {
+    color: colors.warn,
     fontWeight: '700',
-    letterSpacing: 1,
-    marginBottom: spacing.sm,
+    fontSize: 14,
+  },
+  stillNeedItems: {
+    color: colors.warn,
+    fontWeight: '600',
+    fontSize: 14,
+    lineHeight: 20,
   },
   rowCard: {
     padding: spacing.md,
@@ -577,33 +621,21 @@ const styles = StyleSheet.create({
   },
   rowChevron: {
     fontSize: 24,
-    color: colors.textOnGradientMuted,
+    color: colors.textTertiary,
     fontWeight: '400',
   },
   rowTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: colors.textOnGradient,
+    color: colors.textPrimary,
   },
   rowSubtitle: {
     fontSize: 13,
-    color: colors.textOnGradientMuted,
+    color: colors.textSecondary,
     marginTop: 2,
   },
   rowMuted: {
-    color: colors.textOnGradientMuted,
-  },
-  readinessTitle: {
-    color: colors.textOnGradient,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  readinessItems: {
-    color: colors.textOnGradient,
-    fontWeight: '700',
-  },
-  readinessDone: {
-    color: colors.textOnGradient,
-    fontWeight: '700',
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
 });

@@ -2,7 +2,7 @@
 
 Living progress-context doc. Update this whenever a phase completes or scope changes — this is the file a fresh session should read first to know where things stand.
 
-_Updated: 2026-08-25 — Phase 11 merged to main. Phase 12 (real frosted glass + device-test UX fixes) code-complete on `claude/round-7-real-glass-ux`, pending dev-client rebuild for device pass._
+_Updated: 2026-08-25 — Phase 11 merged to main. Phase 12 (real frosted glass) and Phase 13 (dark-glass redesign to the new reference + configuring onboarding + contextual guidance) code-complete on `claude/round-7-real-glass-ux`, pending dev-client rebuild for device pass._
 
 ## Status legend
 `[x]` done · `[~]` in progress · `[ ]` not started
@@ -185,9 +185,25 @@ Branch `claude/round-7-real-glass-ux` (commit 673ad64). Acts on what the device 
 
 **Next step:** `npx eas-cli build --profile development --platform android` from `app/` (~15 min), install new APK on phone, device-pass all phases. Then either merge to `main` or flag regressions.
 
+## Phase 13 — Dark-glass redesign, configuring onboarding, contextual guidance `[x]` code complete (2026-08-25), device pass pending
+
+Branch `claude/round-7-real-glass-ux`. Independent audit against a **new reference image** (a darker, more premium direction than design-v1): deep-navy "night" background with a warm city-glow, dark frosted-glass surfaces, and a single violet→pink accent. The app previously implemented the old warm coral→purple gradient with white cards/modals; this rebuilds the visual language and the first-run UX to the reference.
+
+**Design system.** Rewrote `theme.ts` as one token source (dark palette, violet accent, `accentGradient`, glass tokens, type scale, elevation). New shared primitives in `components/ui.tsx` — `Button` (gradient/secondary/ghost/danger), `Chip`, `Toggle`, `Checkbox`, `TextField`, `SectionLabel` — plus `AppBackground` (navy gradient + warm/violet blooms), a reworked `GlassCard` (dark fill + hero sheen), and `Sheet` (one dark frosted bottom-sheet replacing every opaque-white `Modal`). Every screen (Home, Planner, Map, Live, Inventory), the nav bar (glass blur, violet active), login, and settings now compose these — no screen keeps the legacy look. Emoji checkboxes → styled `Checkbox`; category pickers → chip grids; white modals → `Sheet`.
+
+**No auth wall.** `LoginScreen` is now a dark welcome whose primary action ("Get Started") signs in instantly as a guest via the existing dev-token flow (no inbox) — the brief's "never block a new user behind auth". "Sync with email" stays as the secondary path.
+
+**Configuring onboarding.** Replaced the 3-screen permission-only flow with a guided journey that actually sets the app up: Welcome → create the Office/commute trip (smart defaults, optional location) → preview the packing list StepOut generated → optionally save the destination as a place → "You're ready for tomorrow" payoff. Runs inside `TripProvider` (App.tsx restructured) so it creates real data; every step is skippable without losing prior work.
+
+**Contextual guidance.** New `useGuidance` hook (AsyncStorage-persisted, once-per-id) + `GuidanceCard` coach card on all five tabs (Home/Planner/Map/Live/Inventory). Appears once, dismissible, replayable from Settings ("Replay tips").
+
+**Web-verified** end to end via the RN-web harness: guest sign-in, the full onboarding journey creating an Office trip with the rain-aware 6-item list, the "Ready to go? / Still need" Home card matching the reference, dark sheets opening on Planner, and all five tabs rendering the dark system with guidance.
+
+**Gates:** 119 frontend tests green (updated for renamed nav labels, welcome-first login, new inventory row format), `tsc --noEmit` clean. No backend or data-model changes. Metro reload only; `expo-blur`/native still need a dev-client rebuild for the device pass.
+
 ## Next up
 
-- **EAS dev-client rebuild** with `expo-blur` included. Phase 12 requires native modules (`npx eas-cli build --profile development --platform android`, ~15 min).
+- **EAS dev-client rebuild** with `expo-blur` included. Phases 12–13 require native modules (`npx eas-cli build --profile development --platform android`, ~15 min).
 - **Device pass** on Phase 9 + 10 + 11 + 12 (Smart Setup, commute intelligence, auth, caching, drop-a-pin, swipe, real glass). Post-rebuild, test all tabs, tap maps to drop pins, swipe rows left, watch glass cards over the gradient, verify no regressions from phases 9–11.
 - **Deploy** (still deferred). `server/render.yaml` is ready and now carries the `EMAIL_SENDER` hook; deploying unblocks off-LAN use and real emailed magic links.
 

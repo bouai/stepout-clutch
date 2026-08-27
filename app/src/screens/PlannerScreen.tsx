@@ -1,11 +1,9 @@
-import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Location from 'expo-location';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -16,8 +14,11 @@ import {
 import GlassCard from '../components/GlassCard';
 import ListState, { type LoadStatus } from '../components/ListState';
 import ScreenContainer from '../components/ScreenContainer';
+import Sheet from '../components/Sheet';
 import SwipeRow from '../components/SwipeRow';
 import TripSwitcher from '../components/TripSwitcher';
+import GuidanceCard from '../components/GuidanceCard';
+import { Button, Checkbox, Chip, SectionLabel, TextField } from '../components/ui';
 import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
 import { useCachedResource, invalidateResource } from '../hooks/useCachedResource';
@@ -34,11 +35,11 @@ const DEFAULT_LONGITUDE = 77.209;
 
 type WeatherStatus = 'loading' | 'ready' | 'unavailable';
 
-const CHECKLIST_CATEGORIES: ChecklistCategory[] = [
-  'weather',
-  'routine',
-  'documents',
-  'other',
+const CHECKLIST_CATEGORIES: { value: ChecklistCategory; label: string }[] = [
+  { value: 'weather', label: 'Weather' },
+  { value: 'routine', label: 'Routine' },
+  { value: 'documents', label: 'Documents' },
+  { value: 'other', label: 'Other' },
 ];
 
 async function resolveCoordinates(): Promise<{
@@ -49,11 +50,7 @@ async function resolveCoordinates(): Promise<{
   try {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
-      return {
-        latitude: DEFAULT_LATITUDE,
-        longitude: DEFAULT_LONGITUDE,
-        usedDefault: true,
-      };
+      return { latitude: DEFAULT_LATITUDE, longitude: DEFAULT_LONGITUDE, usedDefault: true };
     }
     const position = await Location.getCurrentPositionAsync();
     return {
@@ -62,11 +59,7 @@ async function resolveCoordinates(): Promise<{
       usedDefault: false,
     };
   } catch {
-    return {
-      latitude: DEFAULT_LATITUDE,
-      longitude: DEFAULT_LONGITUDE,
-      usedDefault: true,
-    };
+    return { latitude: DEFAULT_LATITUDE, longitude: DEFAULT_LONGITUDE, usedDefault: true };
   }
 }
 
@@ -85,7 +78,6 @@ export default function PlannerScreen() {
 
   const [weather, setWeather] = useState<Weather | null>(null);
   const [weatherStatus, setWeatherStatus] = useState<WeatherStatus>('loading');
-  const [usedDefaultLocation, setUsedDefaultLocation] = useState(false);
   const cacheKey = currentTripId ?? 'all';
   const {
     data: checklistData,
@@ -125,20 +117,14 @@ export default function PlannerScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalLabel, setModalLabel] = useState('');
   const [modalCategory, setModalCategory] = useState<ChecklistCategory | null>(null);
-  const [modalInventoryItemId, setModalInventoryItemId] = useState<number | null>(
-    null
-  );
   const [modalError, setModalError] = useState<string | null>(null);
   const [modalSubmitting, setModalSubmitting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-
     async function loadWeather() {
-      const { latitude, longitude, usedDefault } = await resolveCoordinates();
+      const { latitude, longitude } = await resolveCoordinates();
       if (cancelled) return;
-      setUsedDefaultLocation(usedDefault);
-
       try {
         const data = await apiRequest<Weather>('/weather', {
           query: { lat: latitude, lon: longitude },
@@ -148,22 +134,16 @@ export default function PlannerScreen() {
           setWeatherStatus('ready');
         }
       } catch {
-        if (!cancelled) {
-          setWeatherStatus('unavailable');
-        }
+        if (!cancelled) setWeatherStatus('unavailable');
       }
     }
-
     loadWeather();
-
     return () => {
       cancelled = true;
     };
   }, []);
 
   const refreshLists = useCallback(async () => {
-    // A recurring trip starts each day fresh — reset before refetching so the
-    // unchecked state is what loads.
     if (currentTripId !== null) {
       await maybeResetChecklist(currentTripId);
     }
@@ -194,9 +174,7 @@ export default function PlannerScreen() {
   function setLinkedInventoryPacked(inventoryItemId: number | null, isPacked: boolean) {
     if (inventoryItemId === null) return;
     mutateInventory((prev) =>
-      (prev ?? []).map((row) =>
-        row.id === inventoryItemId ? { ...row, isPacked } : row
-      )
+      (prev ?? []).map((row) => (row.id === inventoryItemId ? { ...row, isPacked } : row))
     );
   }
 
@@ -206,9 +184,7 @@ export default function PlannerScreen() {
 
     clearRowError(item.id);
     mutateChecklist((prev) =>
-      (prev ?? []).map((row) =>
-        row.id === item.id ? { ...row, isChecked: nextChecked } : row
-      )
+      (prev ?? []).map((row) => (row.id === item.id ? { ...row, isChecked: nextChecked } : row))
     );
     setLinkedInventoryPacked(item.inventoryItemId, nextChecked);
 
@@ -235,51 +211,34 @@ export default function PlannerScreen() {
   async function commitLabelEdit(item: ChecklistItem) {
     const trimmed = editingLabel.trim();
     setEditingItemId(null);
-
-    if (trimmed.length === 0 || trimmed === item.label) {
-      return;
-    }
+    if (trimmed.length === 0 || trimmed === item.label) return;
 
     const previousLabel = item.label;
     mutateChecklist((prev) =>
-      (prev ?? []).map((row) =>
-        row.id === item.id ? { ...row, label: trimmed } : row
-      )
+      (prev ?? []).map((row) => (row.id === item.id ? { ...row, label: trimmed } : row))
     );
 
     try {
       await patchChecklistItem(item.id, { label: trimmed });
     } catch {
       mutateChecklist((prev) =>
-        (prev ?? []).map((row) =>
-          row.id === item.id ? { ...row, label: previousLabel } : row
-        )
+        (prev ?? []).map((row) => (row.id === item.id ? { ...row, label: previousLabel } : row))
       );
       setRowErrors((prev) => ({ ...prev, [item.id]: 'Could not save change' }));
     }
   }
 
   function confirmDelete(item: ChecklistItem) {
-    Alert.alert(
-      'Delete item?',
-      `Delete "${item.label}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => performDelete(item),
-        },
-      ]
-    );
+    Alert.alert('Delete item?', `Delete "${item.label}"? This cannot be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => performDelete(item) },
+    ]);
   }
 
   async function performDelete(item: ChecklistItem) {
     const index = checklistItems.findIndex((row) => row.id === item.id);
-
     clearRowError(item.id);
     mutateChecklist((prev) => (prev ?? []).filter((row) => row.id !== item.id));
-
     try {
       await apiRequest<void>(`/checklist-items/${item.id}`, { method: 'DELETE' });
     } catch {
@@ -295,7 +254,6 @@ export default function PlannerScreen() {
   function openAddModal() {
     setModalLabel('');
     setModalCategory(null);
-    setModalInventoryItemId(null);
     setModalError(null);
     setModalVisible(true);
   }
@@ -304,7 +262,6 @@ export default function PlannerScreen() {
     setModalVisible(false);
     setModalLabel('');
     setModalCategory(null);
-    setModalInventoryItemId(null);
     setModalError(null);
   }
 
@@ -314,21 +271,16 @@ export default function PlannerScreen() {
 
     setModalSubmitting(true);
     setModalError(null);
-
     try {
       const created = await apiRequest<ChecklistItem>('/checklist-items', {
         method: 'POST',
         body: {
           label: trimmed,
           category: modalCategory,
-          ...(modalInventoryItemId !== null
-            ? { inventoryItemId: modalInventoryItemId }
-            : {}),
           ...(currentTripId !== null ? { tripId: currentTripId } : {}),
         },
       });
       mutateChecklist((prev) => [...(prev ?? []), created]);
-      if (modalInventoryItemId !== null) invalidateResource('inventory:');
       closeAddModal();
     } catch (error) {
       setModalError(describeError(error));
@@ -338,6 +290,7 @@ export default function PlannerScreen() {
   }
 
   const canSubmitModal = modalLabel.trim().length > 0 && modalCategory !== null;
+  const doneCount = checklistItems.filter((i) => i.isChecked).length;
 
   return (
     <ScreenContainer
@@ -348,319 +301,301 @@ export default function PlannerScreen() {
     >
       <TripSwitcher />
 
-      <GlassCard style={styles.card}>
-        <View style={styles.weatherSection}>
-          {weatherStatus === 'loading' && <ActivityIndicator />}
-          {weatherStatus === 'ready' && weather && (
-            <>
-              <Text style={styles.weatherText} testID="weather-summary">
-                {Math.round(weather.temperatureCelsius)}°C · {weather.condition}
-              </Text>
-              {usedDefaultLocation && (
-                <Text style={styles.note}>Using default location</Text>
-              )}
-            </>
-          )}
-          {weatherStatus === 'unavailable' && (
-            <Text style={styles.weatherText} testID="weather-unavailable">
-              Weather unavailable
-            </Text>
-          )}
-        </View>
-      </GlassCard>
+      <GuidanceCard
+        id="planner"
+        title="This is where you get ready"
+        body="Tick items off as you prepare. StepOut suggests weather-aware items, and packing stays in sync with your inventory."
+      />
 
-      <GlassCard style={[styles.card, styles.checklistCard]}>
+      {weatherStatus === 'ready' && weather && (
+        <GlassCard style={styles.weatherStrip}>
+          <Text style={styles.weatherStripText}>
+            {weatherIcon(weather.condition)}  {Math.round(weather.temperatureCelsius)}°C ·{' '}
+            {conditionLabel(weather.condition)}
+          </Text>
+        </GlassCard>
+      )}
+
+      <GlassCard style={styles.checklistCard} tone="hero">
         <View style={styles.checklistHeader}>
-          <Text style={styles.sectionTitle}>Checklist</Text>
-          <Pressable onPress={openAddModal} testID="add-item-button">
-            <Text style={styles.addButton}>+ Add Item</Text>
+          <View>
+            <Text style={styles.sectionTitle}>Checklist</Text>
+            <Text style={styles.progressText}>
+              {doneCount} of {checklistItems.length} done
+            </Text>
+          </View>
+          <Pressable style={styles.addPill} onPress={openAddModal} testID="add-item-button">
+            <Text style={styles.addPillText}>＋ Add</Text>
           </Pressable>
         </View>
 
         <View style={styles.checklistSection}>
           <ListState
             status={checklistStatus}
-            emptyMessage="No checklist items yet"
+            emptyMessage="No checklist items yet — add one or create a trip to get a starter list."
             errorMessage={checklistError ?? undefined}
             onRetry={refetchChecklist}
             testIDPrefix="checklist"
           />
           {checklistStatus === 'ready' &&
             checklistItems.map((item) => (
-            <View key={item.id} style={styles.checklistRow}>
-              <SwipeRow
-                onDelete={() => confirmDelete(item)}
-                testID={`item-${item.id}`}
-              >
-              <View style={styles.checklistRowMain}>
-                <Pressable
-                  onPress={() => toggleChecked(item)}
-                  testID={`checkbox-${item.id}`}
-                  hitSlop={8}
-                >
-                  <Text style={styles.checkbox}>
-                    {item.isChecked ? '☑' : '☐'}
-                  </Text>
-                </Pressable>
-
-                {editingItemId === item.id ? (
-                  <TextInput
-                    style={styles.labelInput}
-                    value={editingLabel}
-                    onChangeText={setEditingLabel}
-                    onBlur={() => commitLabelEdit(item)}
-                    onSubmitEditing={() => commitLabelEdit(item)}
-                    autoFocus
-                    testID={`label-input-${item.id}`}
-                  />
-                ) : (
-                  <Pressable
-                    style={styles.labelPressable}
-                    onPress={() => beginLabelEdit(item)}
-                  >
-                    <Text style={item.isChecked ? styles.labelChecked : styles.label}>
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                )}
-
-                {weatherStatus === 'ready' &&
-                  weather &&
-                  item.weatherCondition === weather.condition && (
-                    <Text style={styles.todayTag}>Today</Text>
-                  )}
-
-                {item.inventoryItemId !== null &&
-                  (() => {
-                    const linkedInventoryItem = inventoryItems.find(
-                      (inventoryItem) => inventoryItem.id === item.inventoryItemId
-                    );
-                    if (!linkedInventoryItem) return null;
-                    return (
-                      <Text
-                        style={styles.inventoryBadge}
-                        testID={`inventory-badge-${item.id}`}
+              <View key={item.id} style={styles.checklistRow}>
+                <SwipeRow onDelete={() => confirmDelete(item)} testID={`item-${item.id}`}>
+                  <View style={styles.checklistRowMain}>
+                    <Checkbox
+                      checked={item.isChecked}
+                      onPress={() => toggleChecked(item)}
+                      testID={`checkbox-${item.id}`}
+                    />
+                    {editingItemId === item.id ? (
+                      <TextInput
+                        style={styles.labelInput}
+                        value={editingLabel}
+                        onChangeText={setEditingLabel}
+                        onBlur={() => commitLabelEdit(item)}
+                        onSubmitEditing={() => commitLabelEdit(item)}
+                        autoFocus
+                        testID={`label-input-${item.id}`}
+                      />
+                    ) : (
+                      <Pressable
+                        style={styles.labelPressable}
+                        onPress={() => beginLabelEdit(item)}
                       >
-                        {linkedInventoryItem.isPacked
-                          ? '📦 Packed'
-                          : '📦 Not packed'}
-                      </Text>
-                    );
-                  })()}
+                        <Text style={item.isChecked ? styles.labelChecked : styles.label}>
+                          {item.label}
+                        </Text>
+                      </Pressable>
+                    )}
+
+                    {weatherStatus === 'ready' &&
+                      weather &&
+                      item.weatherCondition === weather.condition && (
+                        <View style={styles.todayTag}>
+                          <Text style={styles.todayTagText}>Today</Text>
+                        </View>
+                      )}
+
+                    {item.inventoryItemId !== null &&
+                      (() => {
+                        const linked = inventoryItems.find(
+                          (inv) => inv.id === item.inventoryItemId
+                        );
+                        if (!linked) return null;
+                        return (
+                          <Text
+                            style={styles.inventoryBadge}
+                            testID={`inventory-badge-${item.id}`}
+                          >
+                            {linked.isPacked ? '📦 Packed' : '📦 Not packed'}
+                          </Text>
+                        );
+                      })()}
+                  </View>
+                </SwipeRow>
+                {rowErrors[item.id] && (
+                  <Text style={styles.rowError} testID={`row-error-${item.id}`}>
+                    {rowErrors[item.id]}
+                  </Text>
+                )}
               </View>
-              </SwipeRow>
-              {rowErrors[item.id] && (
-                <Text style={styles.rowError} testID={`row-error-${item.id}`}>
-                  {rowErrors[item.id]}
-                </Text>
-              )}
-            </View>
-          ))}
+            ))}
         </View>
       </GlassCard>
 
-      <Modal visible={modalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Add Item</Text>
-
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Label"
-              value={modalLabel}
-              onChangeText={setModalLabel}
-              testID="modal-label-input"
+      <Sheet
+        visible={modalVisible}
+        onClose={closeAddModal}
+        title="Add checklist item"
+        testID="planner-add-sheet"
+        footer={
+          <>
+            <Button
+              label="Cancel"
+              variant="secondary"
+              onPress={closeAddModal}
+              testID="modal-cancel-button"
+              style={styles.footerBtn}
             />
-
-            <Picker
-              selectedValue={modalCategory}
-              onValueChange={(value) => setModalCategory(value)}
-              testID="modal-category-picker"
-            >
-              <Picker.Item label="Select a category..." value={null} />
-              {CHECKLIST_CATEGORIES.map((category) => (
-                <Picker.Item key={category} label={category} value={category} />
-              ))}
-            </Picker>
-
-            <Text style={styles.pickerLabel}>Link to inventory item</Text>
-            <Picker
-              selectedValue={modalInventoryItemId}
-              onValueChange={(value) => setModalInventoryItemId(value)}
-              testID="modal-inventory-picker"
-            >
-              <Picker.Item label="None" value={null} />
-              {inventoryItems.map((inventoryItem) => (
-                <Picker.Item
-                  key={inventoryItem.id}
-                  label={inventoryItem.name}
-                  value={inventoryItem.id}
-                />
-              ))}
-            </Picker>
-
-            {modalError && (
-              <Text style={styles.rowError} testID="modal-error">
-                {modalError}
-              </Text>
-            )}
-
-            <View style={styles.modalActions}>
-              <Pressable onPress={closeAddModal} testID="modal-cancel-button">
-                <Text style={styles.modalActionText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={submitAddItem}
-                disabled={!canSubmitModal || modalSubmitting}
-                testID="modal-add-button"
-              >
-                <Text
-                  style={[
-                    styles.modalActionText,
-                    (!canSubmitModal || modalSubmitting) && styles.modalActionDisabled,
-                  ]}
-                >
-                  Add
-                </Text>
-              </Pressable>
-            </View>
+            <Button
+              label="Add item"
+              onPress={submitAddItem}
+              disabled={!canSubmitModal}
+              loading={modalSubmitting}
+              testID="modal-add-button"
+              style={styles.footerBtn}
+            />
+          </>
+        }
+      >
+        <View style={styles.fieldGroup}>
+          <SectionLabel>What do you need to do?</SectionLabel>
+          <TextField
+            value={modalLabel}
+            onChangeText={setModalLabel}
+            placeholder="e.g. Charge laptop overnight"
+            autoFocus
+            testID="modal-label-input"
+          />
+        </View>
+        <View style={styles.fieldGroup}>
+          <SectionLabel>Category</SectionLabel>
+          <View style={styles.categoryGrid}>
+            {CHECKLIST_CATEGORIES.map((cat) => (
+              <Chip
+                key={cat.value}
+                label={cat.label}
+                selected={modalCategory === cat.value}
+                onPress={() => setModalCategory(cat.value)}
+                testID={`modal-category-${cat.value}`}
+              />
+            ))}
           </View>
         </View>
-      </Modal>
+        {modalError && (
+          <Text style={styles.rowError} testID="modal-error">
+            {modalError}
+          </Text>
+        )}
+      </Sheet>
     </ScreenContainer>
   );
 }
 
+function weatherIcon(condition: string): string {
+  switch (condition) {
+    case 'rain':
+      return '🌧';
+    case 'snow':
+      return '❄️';
+    case 'extreme-heat':
+      return '☀️';
+    case 'extreme-cold':
+      return '🥶';
+    case 'wind':
+      return '💨';
+    default:
+      return '⛅';
+  }
+}
+
+function conditionLabel(condition: string): string {
+  const map: Record<string, string> = {
+    rain: 'Rain expected',
+    snow: 'Snow expected',
+    'extreme-heat': 'Very hot',
+    'extreme-cold': 'Very cold',
+    wind: 'Windy',
+    clear: 'Clear',
+  };
+  return map[condition] ?? condition;
+}
+
 const styles = StyleSheet.create({
-  card: {
+  weatherStrip: {
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  checklistCard: {},
-  weatherSection: {},
-  weatherText: {
-    color: colors.textOnGradient,
+  weatherStripText: {
+    color: colors.textPrimary,
     fontWeight: '600',
+    fontSize: 15,
   },
-  note: {
-    fontSize: 12,
-    color: colors.textOnGradientMuted,
-    marginTop: 4,
+  checklistCard: {
+    padding: spacing.md,
+    marginBottom: spacing.md,
   },
   checklistHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: spacing.md,
   },
-  // Sits on the glass checklist card.
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.textOnGradient,
-  },
-  // Sits on the opaque white modal.
-  modalTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '800',
     color: colors.textPrimary,
   },
-  // A filled coral pill so the primary "add" action reads on the gradient,
-  // instead of coral text lost against a coral background.
-  addButton: {
-    color: colors.textOnGradient,
-    fontWeight: '700',
-    backgroundColor: colors.accent,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+  progressText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  addPill: {
+    backgroundColor: colors.accentSoft,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
     borderRadius: radius.pill,
-    overflow: 'hidden',
+  },
+  addPillText: {
+    color: colors.accent,
+    fontWeight: '700',
+    fontSize: 14,
   },
   checklistSection: {
-    gap: 8,
+    gap: 2,
   },
   checklistRow: {
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.cardBorder,
+    borderBottomColor: colors.glassBorder,
   },
   checklistRowMain: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: spacing.md,
   },
-  checkbox: {
-    fontSize: 18,
-    color: colors.textOnGradient,
+  label: {
+    flex: 1,
+    color: colors.textPrimary,
+    fontSize: 15,
   },
   labelPressable: {
     flex: 1,
   },
-  label: {
-    color: colors.textOnGradient,
-  },
   labelInput: {
     flex: 1,
-    color: colors.textOnGradient,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.cardTranslucentBorder,
-    paddingHorizontal: 6,
+    color: colors.textPrimary,
+    fontSize: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.accentBorder,
     paddingVertical: 2,
   },
   labelChecked: {
+    flex: 1,
+    fontSize: 15,
     textDecorationLine: 'line-through',
-    color: colors.textOnGradientMuted,
+    color: colors.textTertiary,
   },
   todayTag: {
-    fontSize: 12,
+    backgroundColor: colors.accentSoft,
+    borderRadius: radius.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  todayTagText: {
+    fontSize: 11,
     fontWeight: '700',
-    color: colors.textOnGradient,
+    color: colors.navIconActive,
   },
   inventoryBadge: {
     fontSize: 12,
-    color: colors.textOnGradientMuted,
-  },
-  deleteButton: {
-    color: colors.danger,
-    fontWeight: '600',
+    color: colors.textSecondary,
   },
   rowError: {
     fontSize: 12,
     color: colors.danger,
     marginTop: 4,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    padding: 24,
+  fieldGroup: {
+    gap: spacing.sm,
   },
-  modalCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
-    padding: 16,
-    gap: 12,
-  },
-  modalInput: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.textSecondary,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  pickerLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  modalActions: {
+  categoryGrid: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 24,
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
-  modalActionText: {
-    fontWeight: '600',
-    color: colors.accent,
-  },
-  modalActionDisabled: {
-    color: colors.textSecondary,
-  },
+  footerBtn: { flex: 1 },
 });

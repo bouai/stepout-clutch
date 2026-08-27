@@ -4,11 +4,9 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import MapCanvas, {
@@ -18,11 +16,14 @@ import MapCanvas, {
 } from '../components/MapCanvas';
 
 import GlassCard from '../components/GlassCard';
+import GuidanceCard from '../components/GuidanceCard';
 import ListState, { type LoadStatus } from '../components/ListState';
 import PlaceSearch, { type Place } from '../components/PlaceSearch';
 import ScreenContainer from '../components/ScreenContainer';
+import Sheet from '../components/Sheet';
 import SwipeRow from '../components/SwipeRow';
 import TripSwitcher from '../components/TripSwitcher';
+import { Button, SectionLabel, TextField } from '../components/ui';
 import { apiRequest, describeError } from '../api';
 import { useTripContext } from '../context/TripContext';
 import { useCachedResource } from '../hooks/useCachedResource';
@@ -244,10 +245,16 @@ export default function TransitScreen() {
   const canSubmitCreate = createLabel.trim().length > 0 && !createSubmitting;
 
   return (
-    <ScreenContainer scrollable={false} testID="transit-fixed">
+    <ScreenContainer scrollable={false} title="Map & Places" testID="transit-fixed">
       <View style={styles.tripSwitcherWrapper}>
         <TripSwitcher />
       </View>
+
+      <GuidanceCard
+        id="map"
+        title="Save the places that matter"
+        body="Add your Office, Home or gym. StepOut watches these places so it can remind you the moment you arrive or leave — no timers to set."
+      />
 
       <View style={styles.searchWrapper}>
         <PlaceSearch
@@ -309,7 +316,7 @@ export default function TransitScreen() {
         <View style={listStatus === 'ready' ? styles.listSection : undefined}>
           <ListState
             status={listStatus}
-            emptyMessage="No saved destinations yet"
+            emptyMessage="No saved places yet. Search above or tap the map to add your first — StepOut can then alert you when you arrive or leave."
             errorMessage={listError ?? undefined}
             onRetry={refetchDestinations}
             testIDPrefix="destinations"
@@ -368,54 +375,52 @@ export default function TransitScreen() {
         </GlassCard>
       )}
 
-      <Modal visible={pendingLocation !== null} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.sectionTitle}>Add Destination</Text>
-
-            {pendingLocation && (
-              <Text style={styles.modalCoords}>
-                {pendingLocation.latitude.toFixed(5)},{' '}
-                {pendingLocation.longitude.toFixed(5)}
-              </Text>
-            )}
-
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Label"
-              value={createLabel}
-              onChangeText={setCreateLabel}
-              testID="modal-label-input"
+      <Sheet
+        visible={pendingLocation !== null}
+        onClose={closeCreateModal}
+        title="Save this place"
+        subtitle={
+          pendingLocation
+            ? `${pendingLocation.latitude.toFixed(5)}, ${pendingLocation.longitude.toFixed(5)}`
+            : undefined
+        }
+        testID="transit-add-sheet"
+        footer={
+          <>
+            <Button
+              label="Cancel"
+              variant="secondary"
+              onPress={closeCreateModal}
+              testID="modal-cancel-button"
+              style={styles.footerBtn}
             />
-
-            {createError && (
-              <Text style={styles.rowError} testID="modal-error">
-                {createError}
-              </Text>
-            )}
-
-            <View style={styles.modalActions}>
-              <Pressable onPress={closeCreateModal} testID="modal-cancel-button">
-                <Text style={styles.modalActionText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={submitCreateDestination}
-                disabled={!canSubmitCreate}
-                testID="modal-save-button"
-              >
-                <Text
-                  style={[
-                    styles.modalActionText,
-                    !canSubmitCreate && styles.modalActionDisabled,
-                  ]}
-                >
-                  Save
-                </Text>
-              </Pressable>
-            </View>
-          </View>
+            <Button
+              label="Save place"
+              onPress={submitCreateDestination}
+              disabled={!canSubmitCreate}
+              loading={createSubmitting}
+              testID="modal-save-button"
+              style={styles.footerBtn}
+            />
+          </>
+        }
+      >
+        <View style={styles.fieldGroup}>
+          <SectionLabel>Name this place</SectionLabel>
+          <TextField
+            value={createLabel}
+            onChangeText={setCreateLabel}
+            placeholder="e.g. Office"
+            autoFocus
+            testID="modal-label-input"
+          />
         </View>
-      </Modal>
+        {createError && (
+          <Text style={styles.rowError} testID="modal-error">
+            {createError}
+          </Text>
+        )}
+      </Sheet>
     </ScreenContainer>
   );
 }
@@ -494,6 +499,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   distanceSection: {},
+  fieldGroup: { gap: spacing.sm },
+  footerBtn: { flex: 1 },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
