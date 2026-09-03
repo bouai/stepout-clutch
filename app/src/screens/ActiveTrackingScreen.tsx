@@ -4,12 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import MapCanvas, {
@@ -18,16 +16,20 @@ import MapCanvas, {
   type Coordinate,
 } from '../components/MapCanvas';
 
+import GlassCard from '../components/GlassCard';
+import GuidanceCard from '../components/GuidanceCard';
 import ListState, { type LoadStatus } from '../components/ListState';
 import PlaceSearch, { type Place } from '../components/PlaceSearch';
 import ScreenContainer from '../components/ScreenContainer';
+import Sheet from '../components/Sheet';
 import SwipeRow from '../components/SwipeRow';
 import TripSwitcher from '../components/TripSwitcher';
+import { Button, Checkbox, Chip, SectionLabel, TextField } from '../components/ui';
 import { apiRequest, describeError } from '../api';
 import { startGeofencing } from '../geofencing';
 import { useTripContext } from '../context/TripContext';
 import type { GeofenceTrigger, GeofenceTriggerType } from '../types/models';
-import { cardShadow, glassCard, colors, radius, spacing } from '../theme';
+import { cardShadow, colors, radius, spacing } from '../theme';
 
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
@@ -303,10 +305,16 @@ export default function ActiveTrackingScreen() {
   };
 
   return (
-    <ScreenContainer scrollable={false} testID="tracking-fixed">
+    <ScreenContainer scrollable={false} title="Live Tracking" testID="tracking-fixed">
       <View style={styles.tripSwitcherWrapper}>
         <TripSwitcher />
       </View>
+
+      <GuidanceCard
+        id="tracking"
+        title="Automatic arrival & departure alerts"
+        body="Draw a zone around a place and StepOut notifies you the moment you enter or leave it — great for 'grab your badge' as you reach the office."
+      />
 
       <View style={styles.searchWrapper}>
         <PlaceSearch
@@ -316,6 +324,10 @@ export default function ActiveTrackingScreen() {
           testIDPrefix="tracking-place-search"
         />
       </View>
+
+      <Text style={styles.mapHint}>
+        Can't find it by name? Tap the map to drop a pin.
+      </Text>
 
       <View style={styles.mapCard}>
         <View style={styles.mapSection}>
@@ -373,16 +385,18 @@ export default function ActiveTrackingScreen() {
         </Text>
       )}
 
-      <View style={[styles.card, styles.listCard]}>
+      <GlassCard
+        style={[styles.card, listStatus === 'ready' && styles.listCard]}
+      >
         <ScrollView
-          style={styles.listSection}
+          style={listStatus === 'ready' ? styles.listSection : undefined}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           testID="triggers-scroll"
         >
         <ListState
           status={listStatus}
-          emptyMessage="No geofence triggers yet"
+          emptyMessage="No alert zones yet. Tap the map or search a place to draw your first zone."
           errorMessage={listError ?? undefined}
           onRetry={retryTriggers}
           testIDPrefix="triggers"
@@ -395,24 +409,26 @@ export default function ActiveTrackingScreen() {
                 testID={`trigger-${trigger.id}`}
               >
                 <View style={styles.triggerRowMain}>
-                  <Pressable
+                  <Checkbox
+                    checked={trigger.isActive}
                     onPress={() => toggleActive(trigger)}
                     testID={`toggle-${trigger.id}`}
-                    hitSlop={8}
-                  >
-                    <Text style={styles.checkbox}>
-                      {trigger.isActive ? '☑' : '☐'}
+                  />
+                  <View style={styles.triggerText}>
+                    <Text
+                      style={[
+                        styles.triggerLabel,
+                        !trigger.isActive && styles.triggerInactive,
+                      ]}
+                    >
+                      {trigger.triggerType === 'enter' ? '→ ' : '← '}
+                      {trigger.label}
                     </Text>
-                  </Pressable>
-                  <Text
-                    style={[
-                      styles.triggerLabel,
-                      !trigger.isActive && styles.triggerInactive,
-                    ]}
-                  >
-                    {trigger.label} · {trigger.triggerType} · {trigger.radiusMeters}m ·{' '}
-                    {trigger.isActive ? 'active' : 'inactive'}
-                  </Text>
+                    <Text style={styles.triggerMeta}>
+                      {trigger.triggerType === 'enter' ? 'On arrival' : 'On leaving'} ·{' '}
+                      {trigger.radiusMeters}m · {trigger.isActive ? 'Active' : 'Paused'}
+                    </Text>
+                  </View>
                 </View>
               </SwipeRow>
               {rowErrors[trigger.id] && (
@@ -423,96 +439,92 @@ export default function ActiveTrackingScreen() {
             </View>
           ))}
         </ScrollView>
-      </View>
+      </GlassCard>
 
-      <Modal visible={pendingLocation !== null} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.sectionTitle}>Add Geofence Trigger</Text>
-
-            {pendingLocation && (
-              <Text style={styles.modalCoords}>
-                {pendingLocation.latitude.toFixed(5)},{' '}
-                {pendingLocation.longitude.toFixed(5)}
-              </Text>
-            )}
-
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Label"
-              value={modalLabel}
-              onChangeText={setModalLabel}
-              testID="modal-label-input"
+      <Sheet
+        visible={pendingLocation !== null}
+        onClose={closeCreateModal}
+        title="Add an alert zone"
+        subtitle={
+          pendingLocation
+            ? `${pendingLocation.latitude.toFixed(5)}, ${pendingLocation.longitude.toFixed(5)}`
+            : undefined
+        }
+        testID="tracking-add-sheet"
+        footer={
+          <>
+            <Button
+              label="Cancel"
+              variant="secondary"
+              onPress={closeCreateModal}
+              testID="modal-cancel-button"
+              style={styles.footerBtn}
             />
-
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Radius (meters)"
-              value={modalRadius}
-              onChangeText={setModalRadius}
-              keyboardType="numeric"
-              testID="modal-radius-input"
+            <Button
+              label="Save zone"
+              onPress={submitCreateTrigger}
+              disabled={!canSubmitModal}
+              loading={modalSubmitting}
+              testID="modal-save-button"
+              style={styles.footerBtn}
             />
+          </>
+        }
+      >
+        <View style={styles.fieldGroup}>
+          <SectionLabel>Place name</SectionLabel>
+          <TextField
+            value={modalLabel}
+            onChangeText={setModalLabel}
+            placeholder="e.g. Office"
+            testID="modal-label-input"
+          />
+        </View>
 
-            <View style={styles.typeToggle}>
-              <Pressable
-                style={[
-                  styles.typeOption,
-                  modalType === 'enter' && styles.typeOptionSelected,
-                ]}
-                onPress={() => setModalType('enter')}
-                testID="modal-type-enter"
-              >
-                <Text>Enter</Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.typeOption,
-                  modalType === 'exit' && styles.typeOptionSelected,
-                ]}
-                onPress={() => setModalType('exit')}
-                testID="modal-type-exit"
-              >
-                <Text>Exit</Text>
-              </Pressable>
-            </View>
-
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Notification message"
-              value={modalMessage}
-              onChangeText={setModalMessage}
-              testID="modal-message-input"
+        <View style={styles.fieldGroup}>
+          <SectionLabel>Alert me when I…</SectionLabel>
+          <View style={styles.typeRow}>
+            <Chip
+              label="→ Arrive"
+              selected={modalType === 'enter'}
+              onPress={() => setModalType('enter')}
+              testID="modal-type-enter"
             />
-
-            {modalError && (
-              <Text style={styles.rowError} testID="modal-error">
-                {modalError}
-              </Text>
-            )}
-
-            <View style={styles.modalActions}>
-              <Pressable onPress={closeCreateModal} testID="modal-cancel-button">
-                <Text style={styles.modalActionText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={submitCreateTrigger}
-                disabled={!canSubmitModal}
-                testID="modal-save-button"
-              >
-                <Text
-                  style={[
-                    styles.modalActionText,
-                    !canSubmitModal && styles.modalActionDisabled,
-                  ]}
-                >
-                  Save
-                </Text>
-              </Pressable>
-            </View>
+            <Chip
+              label="← Leave"
+              selected={modalType === 'exit'}
+              onPress={() => setModalType('exit')}
+              testID="modal-type-exit"
+            />
           </View>
         </View>
-      </Modal>
+
+        <View style={styles.fieldGroup}>
+          <SectionLabel>Zone radius (meters)</SectionLabel>
+          <TextField
+            value={modalRadius}
+            onChangeText={setModalRadius}
+            placeholder="200"
+            testID="modal-radius-input"
+          />
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <SectionLabel>Notification message</SectionLabel>
+          <TextField
+            value={modalMessage}
+            onChangeText={setModalMessage}
+            placeholder="Arrived at the office"
+            testID="modal-message-input"
+          />
+        </View>
+
+        {modalError && (
+          <Text style={styles.rowError} testID="modal-error">
+            {modalError}
+          </Text>
+        )}
+      </Sheet>
     </ScreenContainer>
   );
 }
@@ -525,8 +537,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     zIndex: 10,
   },
+  mapHint: {
+    color: colors.textOnGradientMuted,
+    fontSize: 12,
+    marginBottom: spacing.sm,
+  },
   card: {
-    ...glassCard,
     padding: spacing.md,
     marginBottom: spacing.md,
   },
@@ -565,19 +581,27 @@ const styles = StyleSheet.create({
   triggerRowMain: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: spacing.md,
   },
-  checkbox: {
-    fontSize: 18,
-    color: colors.textOnGradient,
+  triggerText: {
+    flex: 1,
   },
   triggerLabel: {
-    flex: 1,
-    color: colors.textOnGradient,
+    color: colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  triggerMeta: {
+    color: colors.textSecondary,
+    fontSize: 13,
+    marginTop: 2,
   },
   triggerInactive: {
-    color: colors.textOnGradientMuted,
+    color: colors.textTertiary,
   },
+  fieldGroup: { gap: spacing.sm },
+  typeRow: { flexDirection: 'row', gap: spacing.sm },
+  footerBtn: { flex: 1 },
   deleteButton: {
     color: colors.danger,
     fontWeight: '600',

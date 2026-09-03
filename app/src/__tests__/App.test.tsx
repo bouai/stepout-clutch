@@ -23,7 +23,8 @@ describe('App onboarding gate', () => {
     const view = await render(<App />);
 
     await waitFor(() => expect(view.queryByTestId('app-loading')).toBeNull());
-    expect(view.getByText(/StepOut/i)).toBeTruthy();
+    // The configuring onboarding opens on its welcome step.
+    expect(view.getByText('Welcome to StepOut')).toBeTruthy();
   });
 
   it('skips onboarding once it has been completed', async () => {
@@ -33,11 +34,11 @@ describe('App onboarding gate', () => {
     await waitFor(() => expect(view.queryByTestId('app-loading')).toBeNull());
     // The tab bar only exists on the far side of the gate. "Home" matches both
     // the tab label and the screen heading, hence getAllByText.
-    await waitFor(() => expect(view.getByText('Plan')).toBeTruthy());
+    await waitFor(() => expect(view.getByText('Planner')).toBeTruthy());
     expect(view.getAllByText('Home').length).toBeGreaterThan(0);
-    expect(view.getByText('Pack')).toBeTruthy();
-    expect(view.getByText('Go')).toBeTruthy();
-    expect(view.getByText('Track')).toBeTruthy();
+    expect(view.getByText('Inventory')).toBeTruthy();
+    expect(view.getByText('Map')).toBeTruthy();
+    expect(view.getByText('Live')).toBeTruthy();
   });
 
   it('treats a storage read failure as already onboarded rather than trapping the user', async () => {
@@ -48,6 +49,6 @@ describe('App onboarding gate', () => {
     const view = await render(<App />);
 
     await waitFor(() => expect(view.queryByTestId('app-loading')).toBeNull());
-    await waitFor(() => expect(view.getByText('Plan')).toBeTruthy());
+    await waitFor(() => expect(view.getByText('Planner')).toBeTruthy());
   });
 });

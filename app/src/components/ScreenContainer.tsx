@@ -1,4 +1,3 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import type { ReactNode } from 'react';
 import {
   RefreshControl,
@@ -10,6 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import AppBackground from './AppBackground';
 import { colors, spacing, typography } from '../theme';
 
 /** Clearance for the floating pill nav: its 64pt height plus its 24pt offset. */
@@ -62,10 +62,7 @@ export default function ScreenContainer({
     ) : null;
 
   return (
-    <LinearGradient
-      colors={[colors.gradientStart, colors.gradientEnd]}
-      style={styles.gradient}
-    >
+    <AppBackground style={styles.gradient}>
       {scrollable ? (
         <ScrollView
           style={styles.scroll}
@@ -96,7 +93,7 @@ export default function ScreenContainer({
           {children}
         </View>
       )}
-    </LinearGradient>
+    </AppBackground>
   );
 }
 

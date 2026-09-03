@@ -1,32 +1,34 @@
-import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import {
-  Alert,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import GlassCard from '../components/GlassCard';
+import GuidanceCard from '../components/GuidanceCard';
 import ListState, { type LoadStatus } from '../components/ListState';
 import ScreenContainer from '../components/ScreenContainer';
+import Sheet from '../components/Sheet';
 import SwipeRow from '../components/SwipeRow';
 import TripSwitcher from '../components/TripSwitcher';
+import { Button, Checkbox, Chip, SectionLabel, TextField } from '../components/ui';
 import { useTripContext } from '../context/TripContext';
 import { useCachedResource, invalidateResource } from '../hooks/useCachedResource';
 import { apiRequest, describeError } from '../api';
 import type { InventoryCategory, InventoryItem } from '../types/models';
-import { glassCard, colors, radius, spacing, typography } from '../theme';
+import { colors, radius, spacing } from '../theme';
 
-const INVENTORY_CATEGORIES: InventoryCategory[] = [
-  'electronics',
-  'documents',
-  'weather-gear',
-  'other',
+const INVENTORY_CATEGORIES: { value: InventoryCategory; label: string }[] = [
+  { value: 'electronics', label: 'Electronics' },
+  { value: 'documents', label: 'Documents' },
+  { value: 'weather-gear', label: 'Weather gear' },
+  { value: 'other', label: 'Other' },
 ];
+
+const CATEGORY_ICON: Record<InventoryCategory, string> = {
+  electronics: '🔌',
+  documents: '📄',
+  'weather-gear': '🧥',
+  other: '📦',
+};
 
 async function patchInventoryItem(
   id: number,
@@ -44,8 +46,6 @@ const inventoryPath = (tripId: number | null) =>
 export default function InventoryScreen() {
   const { currentTripId } = useTripContext();
 
-  // Cached: the last-loaded list shows instantly on re-focus while a fresh copy
-  // loads quietly behind it, so switching tabs no longer flashes empty.
   const {
     data,
     status: fetchStatus,
@@ -82,7 +82,6 @@ export default function InventoryScreen() {
     setRefreshing(false);
   }
 
-  // Keep the list fresh whenever the tab regains focus.
   useFocusEffect(
     useCallback(() => {
       refetch();
@@ -104,14 +103,11 @@ export default function InventoryScreen() {
 
     clearRowError(item.id);
     mutate((prev) =>
-      (prev ?? []).map((row) =>
-        row.id === item.id ? { ...row, isPacked: nextPacked } : row
-      )
+      (prev ?? []).map((row) => (row.id === item.id ? { ...row, isPacked: nextPacked } : row))
     );
 
     try {
       await patchInventoryItem(item.id, { isPacked: nextPacked });
-      // A packing change flips any linked checklist item, so its cache is stale.
       invalidateResource('checklist:');
     } catch {
       mutate((prev) =>
@@ -124,26 +120,16 @@ export default function InventoryScreen() {
   }
 
   function confirmDelete(item: InventoryItem) {
-    Alert.alert(
-      'Delete item?',
-      `Delete "${item.name}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => performDelete(item),
-        },
-      ]
-    );
+    Alert.alert('Delete item?', `Delete "${item.name}"? This cannot be undone.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => performDelete(item) },
+    ]);
   }
 
   async function performDelete(item: InventoryItem) {
     const index = items.findIndex((row) => row.id === item.id);
-
     clearRowError(item.id);
     mutate((prev) => (prev ?? []).filter((row) => row.id !== item.id));
-
     try {
       await apiRequest<void>(`/inventory-items/${item.id}`, { method: 'DELETE' });
     } catch {
@@ -176,7 +162,6 @@ export default function InventoryScreen() {
 
     setModalSubmitting(true);
     setModalError(null);
-
     try {
       const created = await apiRequest<InventoryItem>('/inventory-items', {
         method: 'POST',
@@ -196,48 +181,67 @@ export default function InventoryScreen() {
   }
 
   const canSubmitModal = modalName.trim().length > 0 && modalCategory !== null;
+  const packedCount = items.filter((i) => i.isPacked).length;
 
   return (
     <ScreenContainer
+      title="Inventory"
       onRefresh={handleRefresh}
       refreshing={refreshing}
       testID="inventory-scroll"
     >
-      <View style={styles.header}>
-        <Text style={styles.title}>Inventory</Text>
-        <Pressable onPress={openAddModal} testID="add-item-button">
-          <Text style={styles.addButton}>+ Add Item</Text>
+      <TripSwitcher />
+
+      <GuidanceCard
+        id="inventory"
+        title="Your reusable essentials"
+        body="These are the things you own. Trips reference them to build a packing list — so you set them up once and never think about them again."
+      />
+
+      <View style={styles.summaryRow}>
+        <Text style={styles.summaryTitle}>Your essentials</Text>
+        <Pressable style={styles.addPill} onPress={openAddModal} testID="add-item-button">
+          <Text style={styles.addPillText}>＋ Add</Text>
         </Pressable>
       </View>
 
-      <TripSwitcher />
-
-      <View style={[styles.card, styles.listCard]}>
-        <ListState
-          status={status}
-          emptyMessage="No inventory items yet"
-          errorMessage={loadError ?? undefined}
-          onRetry={refetch}
-          testIDPrefix="inventory"
-        />
+      <GlassCard style={styles.listCard} tone="hero">
+        {status === 'ready' && (
+          <Text style={styles.packedSummary}>
+            {packedCount} of {items.length} packed
+          </Text>
+        )}
+        {status !== 'ready' && (
+          <ListState
+            status={status}
+            emptyMessage="Nothing here yet. Add your first item — a laptop, a charger, an umbrella — and trips can pack it for you."
+            errorMessage={loadError ?? undefined}
+            onRetry={refetch}
+            testIDPrefix="inventory"
+          />
+        )}
+        {status === 'empty' && (
+          <View style={styles.emptyCta}>
+            <Button label="Add your first item" icon="＋" onPress={openAddModal} />
+          </View>
+        )}
         {status === 'ready' &&
           items.map((item) => (
             <View key={item.id} style={styles.row}>
-              <SwipeRow
-                onDelete={() => confirmDelete(item)}
-                testID={`item-${item.id}`}
-              >
+              <SwipeRow onDelete={() => confirmDelete(item)} testID={`item-${item.id}`}>
                 <View style={styles.rowMain}>
-                  <Pressable
+                  <Checkbox
+                    checked={item.isPacked}
                     onPress={() => togglePacked(item)}
                     testID={`checkbox-${item.id}`}
-                    hitSlop={8}
-                  >
-                    <Text style={styles.checkbox}>{item.isPacked ? '☑' : '☐'}</Text>
-                  </Pressable>
+                  />
+                  <Text style={styles.rowIcon}>{CATEGORY_ICON[item.category]}</Text>
                   <Text style={item.isPacked ? styles.nameChecked : styles.name}>
-                    {item.name} ({item.quantity})
+                    {item.name}
                   </Text>
+                  {item.quantity > 1 && (
+                    <Text style={styles.qty}>×{item.quantity}</Text>
+                  )}
                 </View>
               </SwipeRow>
               {rowErrors[item.id] && (
@@ -247,150 +251,146 @@ export default function InventoryScreen() {
               )}
             </View>
           ))}
-      </View>
+      </GlassCard>
 
-      <Modal visible={modalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.sectionTitle}>Add Item</Text>
-
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Name"
-              value={modalName}
-              onChangeText={setModalName}
-              testID="modal-name-input"
+      <Sheet
+        visible={modalVisible}
+        onClose={closeAddModal}
+        title="Add an item"
+        testID="inventory-add-sheet"
+        footer={
+          <>
+            <Button
+              label="Cancel"
+              variant="secondary"
+              onPress={closeAddModal}
+              testID="modal-cancel-button"
+              style={styles.footerBtn}
             />
-
-            <Picker
-              selectedValue={modalCategory}
-              onValueChange={(value) => setModalCategory(value)}
-              testID="modal-category-picker"
-            >
-              <Picker.Item label="Select a category..." value={null} />
-              {INVENTORY_CATEGORIES.map((category) => (
-                <Picker.Item key={category} label={category} value={category} />
-              ))}
-            </Picker>
-
-            {modalError && (
-              <Text style={styles.rowError} testID="modal-error">
-                {modalError}
-              </Text>
-            )}
-
-            <View style={styles.modalActions}>
-              <Pressable onPress={closeAddModal} testID="modal-cancel-button">
-                <Text style={styles.modalActionText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={submitAddItem}
-                disabled={!canSubmitModal || modalSubmitting}
-                testID="modal-add-button"
-              >
-                <Text
-                  style={[
-                    styles.modalActionText,
-                    (!canSubmitModal || modalSubmitting) && styles.modalActionDisabled,
-                  ]}
-                >
-                  Add
-                </Text>
-              </Pressable>
-            </View>
+            <Button
+              label="Add item"
+              onPress={submitAddItem}
+              disabled={!canSubmitModal}
+              loading={modalSubmitting}
+              testID="modal-add-button"
+              style={styles.footerBtn}
+            />
+          </>
+        }
+      >
+        <View style={styles.fieldGroup}>
+          <SectionLabel>Item name</SectionLabel>
+          <TextField
+            value={modalName}
+            onChangeText={setModalName}
+            placeholder="e.g. Laptop charger"
+            autoFocus
+            testID="modal-name-input"
+          />
+        </View>
+        <View style={styles.fieldGroup}>
+          <SectionLabel>Category</SectionLabel>
+          <View style={styles.categoryGrid}>
+            {INVENTORY_CATEGORIES.map((cat) => (
+              <Chip
+                key={cat.value}
+                label={cat.label}
+                selected={modalCategory === cat.value}
+                onPress={() => setModalCategory(cat.value)}
+                testID={`modal-category-${cat.value}`}
+              />
+            ))}
           </View>
         </View>
-      </Modal>
+        {modalError && (
+          <Text style={styles.rowError} testID="modal-error">
+            {modalError}
+          </Text>
+        )}
+      </Sheet>
     </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
+  summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
-  title: {
-    ...typography.heading,
+  summaryTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.textPrimary,
   },
-  card: {
-    ...glassCard,
+  addPill: {
+    backgroundColor: colors.accentSoft,
+    borderWidth: 1,
+    borderColor: colors.accentBorder,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+  },
+  addPillText: {
+    color: colors.accent,
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  listCard: {
     padding: spacing.md,
     marginBottom: spacing.md,
   },
-  listCard: {},
-  // Used only inside the opaque white modal, so it keeps dark text.
-  sectionTitle: {
-    fontSize: 16,
+  packedSummary: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: spacing.sm,
     fontWeight: '600',
-    color: colors.textPrimary,
   },
-  addButton: {
-    color: colors.accent,
-    fontWeight: '600',
+  emptyCta: {
+    marginTop: spacing.md,
   },
   row: {
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.cardBorder,
+    borderBottomColor: colors.glassBorder,
   },
   rowMain: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: spacing.md,
   },
-  checkbox: {
+  rowIcon: {
     fontSize: 18,
-    color: colors.textOnGradient,
   },
   name: {
     flex: 1,
-    color: colors.textOnGradient,
+    color: colors.textPrimary,
+    fontSize: 15,
   },
   nameChecked: {
     flex: 1,
+    fontSize: 15,
     textDecorationLine: 'line-through',
-    color: colors.textOnGradientMuted,
+    color: colors.textTertiary,
   },
-  deleteButton: {
-    color: colors.danger,
-    fontWeight: '600',
+  qty: {
+    color: colors.textSecondary,
+    fontWeight: '700',
+    fontSize: 14,
   },
   rowError: {
     fontSize: 12,
     color: colors.danger,
     marginTop: 4,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'center',
-    padding: 24,
+  fieldGroup: {
+    gap: spacing.sm,
   },
-  modalCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
-    padding: 16,
-    gap: 12,
-  },
-  modalInput: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.textSecondary,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-  },
-  modalActions: {
+  categoryGrid: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 24,
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
-  modalActionText: {
-    fontWeight: '600',
-    color: colors.accent,
-  },
-  modalActionDisabled: {
-    color: colors.textSecondary,
-  },
+  footerBtn: { flex: 1 },
 });
