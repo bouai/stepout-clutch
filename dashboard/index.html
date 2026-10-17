@@ -1,0 +1,449 @@
+<title>StepOut Control Panel</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a transit route of phases up top, then status panels in a two-column grid that stacks on phones. */
+:root {
+  --bg: #f4f4f8;
+  --surface: #ffffff;
+  --sunken: #ebebf2;
+  --ink: #17162b;
+  --ink-2: #4a4863;
+  --ink-3: #7b7994;
+  --line: #dcdbe7;
+  --accent: #5a45d6;
+  --accent-soft: #e9e5ff;
+  --ok: #157a4c;
+  --ok-soft: #dcf3e7;
+  --warn: #9a5b00;
+  --warn-soft: #fdeccc;
+  --bad: #b3261e;
+  --bad-soft: #fbe0de;
+  --muted-soft: #e6e5ee;
+  --shadow: 0 1px 2px rgba(23, 22, 43, .06), 0 4px 16px rgba(23, 22, 43, .05);
+  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11101c; --surface: #1b1a2b; --sunken: #232236; --ink: #eceaf7; --ink-2: #b7b4cf; --ink-3: #8c89a8;
+    --line: #2f2d45; --accent: #a596ff; --accent-soft: #2c2654; --ok: #5fd39a; --ok-soft: #173a2a;
+    --warn: #f1b552; --warn-soft: #3d2d12; --bad: #ff8a80; --bad-soft: #42201f; --muted-soft: #2a2940;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11101c; --surface: #1b1a2b; --sunken: #232236; --ink: #eceaf7; --ink-2: #b7b4cf; --ink-3: #8c89a8;
+  --line: #2f2d45; --accent: #a596ff; --accent-soft: #2c2654; --ok: #5fd39a; --ok-soft: #173a2a;
+  --warn: #f1b552; --warn-soft: #3d2d12; --bad: #ff8a80; --bad-soft: #42201f; --muted-soft: #2a2940;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3); color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 64px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; letter-spacing: -.01em; }
+h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 800; line-height: 1.05; }
+h2 { font-size: 22px; font-weight: 700; }
+h3 { font-size: 16px; font-weight: 700; }
+p { margin: 0; }
+code, .mono { font-family: var(--f-mono); font-size: .86em; }
+code { background: var(--sunken); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3); }
+
+/* Header */
+header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px 32px; align-items: end; }
+header .lede { color: var(--ink-2); max-width: 64ch; margin-top: 12px; font-size: 16px; }
+.asof { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; text-align: right; }
+.asof b { font-family: var(--f-mono); font-weight: 500; }
+@media (max-width: 720px) { header { grid-template-columns: 1fr; } .asof { align-items: flex-start; text-align: left; } }
+
+/* Section shell */
+section { display: flex; flex-direction: column; gap: 14px; }
+.sec-head { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; justify-content: space-between; }
+.sec-head p { color: var(--ink-3); font-size: 14px; max-width: 70ch; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); padding: 20px; min-width: 0; }
+
+/* Stat strip */
+.stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 900px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stats .stat:last-child { grid-column: 1 / -1; } }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.stat .num { font-family: var(--f-display); font-size: 30px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat .lbl { font-size: 13px; color: var(--ink-2); }
+.stat .sub { font-size: 12px; color: var(--ink-3); }
+.stat.flag { border-color: var(--warn); }
+.stat.flag .num { color: var(--warn); }
+.stat.bad { border-color: var(--bad); }
+.stat.bad .num { color: var(--bad); }
+
+/* Chips */
+.chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; white-space: nowrap; line-height: 1.6; }
+.chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.c-ok { background: var(--ok-soft); color: var(--ok); }
+.c-warn { background: var(--warn-soft); color: var(--warn); }
+.c-bad { background: var(--bad-soft); color: var(--bad); }
+.c-muted { background: var(--muted-soft); color: var(--ink-3); }
+.c-acc { background: var(--accent-soft); color: var(--accent); }
+
+/* Route */
+.route-scroll { overflow-x: auto; padding-bottom: 6px; }
+.route { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(150px, 1fr); min-width: 1040px; position: relative; }
+.stop { position: relative; padding: 0 10px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.stop .track { position: relative; height: 26px; }
+.stop .track::before { content: ""; position: absolute; left: 0; right: 0; top: 11px; height: 4px; background: var(--accent); opacity: .35; }
+.stop:first-child .track::before { left: 13px; }
+.stop:last-child .track::before { right: auto; width: 13px; }
+.dot { position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%; border: 4px solid var(--accent); background: var(--surface); z-index: 1; }
+.dot.dev { background: var(--ok); border-color: var(--ok); }
+.dot.web { border-color: var(--warn); }
+.dot.sup { border-color: var(--ink-3); border-style: dashed; }
+.stop .ph { font-family: var(--f-mono); font-size: 12px; color: var(--ink-3); }
+.stop .nm { font-weight: 600; font-size: 14px; line-height: 1.3; }
+.stop .meta { display: flex; flex-wrap: wrap; gap: 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { width: 14px; height: 14px; border-radius: 50%; border: 3px solid var(--accent); display: inline-block; }
+.legend i.dev { background: var(--ok); border-color: var(--ok); }
+.legend i.web { border-color: var(--warn); }
+.legend i.sup { border-color: var(--ink-3); border-style: dashed; }
+
+/* Two-column grid */
+.grid2 { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+
+/* Tables */
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: left; font-family: var(--f-mono); font-weight: 500; font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); padding: 0 10px 8px 0; border-bottom: 1px solid var(--line); }
+td { padding: 10px 10px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.mono { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tbl-sync { min-width: 560px; }
+.tbl-fb { min-width: 640px; }
+
+/* Ring */
+.ringbox { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.ringbox svg { flex: none; }
+.ringbox .big { font-family: var(--f-display); font-weight: 800; font-size: 26px; line-height: 1.1; }
+.checks { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.checks li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; font-size: 14px; align-items: start; }
+.checks .mk { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; font-size: 13px; font-weight: 700; margin-top: 1px; }
+.checks .y { background: var(--ok-soft); color: var(--ok); }
+.checks .n { background: var(--bad-soft); color: var(--bad); }
+.checks small { display: block; color: var(--ink-3); font-size: 12.5px; }
+
+/* Gallery */
+.gallery { display: grid; grid-auto-flow: column; grid-auto-columns: 210px; gap: 16px; overflow-x: auto; padding-bottom: 8px; scroll-snap-type: x proximity; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 8px; scroll-snap-align: start; }
+figure img { width: 210px; aspect-ratio: 390 / 844; object-fit: cover; object-position: top; border-radius: 22px; border: 6px solid var(--ink); background: var(--ink); max-width: 100%; }
+figcaption { font-size: 13px; color: var(--ink-2); line-height: 1.45; }
+figcaption b { color: var(--ink); display: block; font-size: 14px; }
+figcaption .note { color: var(--bad); display: block; margin-top: 3px; }
+
+/* Findings */
+.finds { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0; }
+.finds li { display: grid; grid-template-columns: 74px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.finds li:last-child { border-bottom: 0; }
+.finds p { color: var(--ink-2); font-size: 14px; margin-top: 2px; }
+
+/* Next steps */
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.steps li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 12px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.steps li.done { opacity: .55; }
+.steps li.done .t { text-decoration: line-through; }
+.steps input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); cursor: pointer; }
+.steps .t { font-weight: 600; }
+.steps p { color: var(--ink-2); font-size: 14px; margin-top: 3px; }
+.steps .who { font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-3); text-align: right; white-space: nowrap; }
+@media (max-width: 560px) { .steps li { grid-template-columns: 24px minmax(0, 1fr); } .steps .who { grid-column: 2; text-align: left; } }
+
+/* Lessons */
+.lessons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 760px) { .lessons { grid-template-columns: 1fr; } }
+details { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+summary { cursor: pointer; font-weight: 600; list-style-position: outside; }
+details p { color: var(--ink-2); font-size: 14px; margin-top: 8px; }
+details .tag { font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-3); margin-top: 6px; display: block; }
+
+.callout { border-left: 4px solid var(--warn); background: var(--warn-soft); border-radius: 0 10px 10px 0; padding: 12px 16px; font-size: 14px; color: var(--ink); }
+.foot { color: var(--ink-3); font-size: 13px; display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 18px; }
+@media (prefers-reduced-motion: no-preference) { .steps li { transition: opacity .2s; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <div class="eyebrow">bouai/stepout-clutch · Clutch Intelligence</div>
+      <h1>StepOut Control Panel</h1>
+      <p class="lede" id="verdict"></p>
+    </div>
+    <div class="asof">
+      <span class="eyebrow">Snapshot as of</span>
+      <b id="asof"></b>
+      <span class="chip c-warn" id="idle"></span>
+    </div>
+  </header>
+
+  <div class="stats" id="stats"></div>
+
+  <section>
+    <div class="sec-head">
+      <h2>The route so far</h2>
+      <p>Every phase from scaffold to the dark redesign, left to right. Station colour shows how far each phase was verified.</p>
+    </div>
+    <div class="panel">
+      <div class="route-scroll"><div class="route" id="route"></div></div>
+      <div class="legend" style="margin-top:14px">
+        <span><i class="dev"></i>Verified on your phone</span>
+        <span><i class="web"></i>Checked in the browser harness only</span>
+        <span><i></i>Merged, early loops (first device test came later)</span>
+        <span><i class="sup"></i>Superseded</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="grid2">
+    <section>
+      <div class="sec-head"><h2>Linear vs. the code</h2><p>Out of sync since 16 Aug.</p></div>
+      <div class="panel">
+        <div class="callout" style="margin-bottom:14px">Linear's Clutch Intelligence team ends at <b>CLU-20</b> (Phase 6, 10 Aug). Phases 7–13 shipped as six direct PRs (#16–#21) with no issues at all, so the <code>/clutch-build</code> queue has nothing in it. The team also has no project and four onboarding issues (CLU-1 to CLU-4) still in Todo.</div>
+        <div class="tbl-wrap"><table class="tbl-sync"><thead><tr><th>Phase</th><th>Linear</th><th>GitHub</th><th>Roadmap</th></tr></thead><tbody id="sync"></tbody></table></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>Ship readiness</h2><p>The app's own readiness ring, pointed at the project.</p></div>
+      <div class="panel">
+        <div class="ringbox">
+          <svg id="ring" width="108" height="108" viewBox="0 0 108 108" role="img" aria-label="Ship readiness"></svg>
+          <div><div class="big" id="ringText"></div><div style="color:var(--ink-2);font-size:14px">Code is ahead. Proof and plumbing are behind.</div></div>
+        </div>
+        <ul class="checks" id="checks"></ul>
+      </div>
+    </section>
+  </div>
+
+  <section>
+    <div class="sec-head">
+      <h2>What the app looks like today</h2>
+      <p>Captured from <code>main</code> (34fe0cf) in the browser harness on 17 Oct, at phone size, as a brand-new user. Maps and weather can't load from the capture sandbox, so those panels are empty here, not broken.</p>
+    </div>
+    <div class="gallery" id="gallery"></div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>What you didn't like, and where it stands</h2>
+      <p>Pulled from your device-test critiques recorded in the roadmap and commit history. "Web only" means the fix was never seen on your phone.</p>
+    </div>
+    <div class="panel"><div class="tbl-wrap"><table class="tbl-fb"><thead><tr><th>You said</th><th>What changed</th><th>Seen on device?</th></tr></thead><tbody id="feedback"></tbody></table></div></div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Fresh-eyes findings</h2>
+      <p>New problems found while walking through <code>main</code> on 17 Oct. Not in any tracker yet.</p>
+    </div>
+    <div class="panel"><ul class="finds" id="finds"></ul></div>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Next steps</h2>
+      <p>In order. Ticks are saved in this browser only.</p>
+    </div>
+    <ol class="steps" id="steps"></ol>
+  </section>
+
+  <section>
+    <div class="sec-head">
+      <h2>Things this project taught</h2>
+      <p>Each one cost a round. Open one for the story.</p>
+    </div>
+    <div class="lessons" id="lessons"></div>
+  </section>
+
+  <div class="foot">
+    <span><b>Keeping this current:</b> ask Claude to "update the StepOut control panel". It re-runs the test gates, reads Linear and GitHub, re-captures screens, edits the <code>DATA</code> block in <code>dashboard/index.html</code>, and republishes to the same link.</span>
+    <span id="changelog"></span>
+  </div>
+</div>
+
+<script>
+/* ===== Everything below DATA is rendering. Update the panel by editing DATA. ===== */
+const DATA = {
+  asOf: "2026-10-17",
+  lastCommit: { date: "2026-09-04", sha: "34fe0cf", what: "Merged PR #21 (Round 7)" },
+  verdict: "StepOut is a working personal commute-and-trip app: smart trip setup, weather-aware packing, background arrival/departure alerts, email sign-in, and a new dark design. All of it is merged to main. What's missing is proof and plumbing: the last five phases were never tried on your phone, Linear stopped tracking after Phase 6, and the backend still only runs on your laptop's Wi-Fi.",
+  stats: [
+    { num: "21 / 0", lbl: "PRs merged / open", sub: "#1 to #21, nothing in flight" },
+    { num: "167", lbl: "Backend tests passing", sub: "pytest, 7.8s" },
+    { num: "119", lbl: "Frontend tests passing", sub: "1 flaky failure in 4 runs", cls: "flag" },
+    { num: "5", lbl: "Phases never seen on device", sub: "Phases 9 to 13", cls: "bad" },
+    { num: "7", lbl: "Phases missing from Linear", sub: "Phases 7 to 13", cls: "bad" }
+  ],
+  // state: dev = verified on phone, web = browser harness only, merged = early loop, sup = superseded
+  phases: [
+    { ph: "Loops 1–7", name: "Core app: checklist, weather, map, inventory, geofences", date: "5–8 Aug", prs: "#1–#7", linear: "CLU-5–11", state: "merged" },
+    { ph: "Phase 0–1", name: "Stabilisation after first device test", date: "9 Aug", prs: "#8–#10", linear: "CLU-12–15", state: "dev" },
+    { ph: "Phase 2–6", name: "Reskin, trips, alert log, Home, onboarding", date: "9–10 Aug", prs: "#11–#15", linear: "CLU-16–20", state: "dev" },
+    { ph: "Phase 7", name: "MVP hardening: scroll, UTC, background geofencing", date: "16 Aug", prs: "#16", linear: null, state: "dev" },
+    { ph: "Phase 8", name: "Personal use: MapLibre maps, place search, no false alerts", date: "16–17 Aug", prs: "#17", linear: null, state: "dev" },
+    { ph: "Phase 9", name: "Browser harness + Smart trip setup", date: "17 Aug", prs: "#18", linear: null, state: "web" },
+    { ph: "Phase 10", name: "Commute intelligence + magic-link accounts", date: "17 Aug", prs: "#19", linear: null, state: "web" },
+    { ph: "Phase 11", name: "Caching, drop-a-pin, one readiness ring, swipe-delete", date: "18 Aug", prs: "#20", linear: null, state: "web" },
+    { ph: "Phase 12", name: "Real frosted glass (expo-blur)", date: "25 Aug", prs: "#21", linear: null, state: "sup", note: "Blur crashed on device; removed" },
+    { ph: "Phase 13", name: "Dark redesign, guided onboarding, coach tips", date: "27 Aug → 4 Sep", prs: "#21", linear: null, state: "web" }
+  ],
+  sync: [
+    { ph: "Loops 1–7", linear: ["ok", "CLU-5–11 Done"], gh: ["ok", "#1–#7 merged"], rm: ["ok", "Accurate"] },
+    { ph: "Phase 0–1", linear: ["ok", "CLU-12–15 Done"], gh: ["ok", "#8–#10 merged"], rm: ["ok", "Accurate"] },
+    { ph: "Phase 2–6", linear: ["ok", "CLU-16–20 Done"], gh: ["ok", "#11–#15 merged"], rm: ["ok", "Accurate"] },
+    { ph: "Phase 7–11", linear: ["bad", "No issues"], gh: ["ok", "#16–#20 merged"], rm: ["ok", "Accurate"] },
+    { ph: "Phase 12", linear: ["bad", "No issue"], gh: ["ok", "In #21"], rm: ["warn", "Fixed today: blur was removed"] },
+    { ph: "Phase 13", linear: ["bad", "No issue"], gh: ["ok", "#21 merged 4 Sep"], rm: ["warn", "Fixed today: said 'pending'"] },
+    { ph: "Housekeeping", linear: ["warn", "CLU-1–4 onboarding junk, no project"], gh: ["warn", "21 merged branches not deleted"], rm: ["muted", "n/a"] }
+  ],
+  checks: [
+    { ok: true, t: "Everything merged to main", s: "No open PRs or stray work" },
+    { ok: true, t: "Automated gates green", s: "167 pytest, 119 jest, tsc clean; one flaky jest run" },
+    { ok: true, t: "Roadmap matches reality", s: "Corrected on 17 Oct alongside this panel" },
+    { ok: false, t: "Seen working on your phone", s: "Last full device pass was Phase 8, 17 Aug" },
+    { ok: false, t: "Linear in sync", s: "Stops at CLU-20; 7 phases untracked" },
+    { ok: false, t: "Runs off your Wi-Fi", s: "Backend not deployed; render.yaml is ready" }
+  ],
+  gallery: [
+    { img: "shots/welcome.jpg", t: "Welcome", d: "Guest sign-in by default. Email sync is the secondary path." },
+    { img: "shots/onboard-trip.jpg", t: "Onboarding · first trip", d: "Creates a real Office commute trip.", note: "The location search box is near-white with white text, so you can't see what you type." },
+    { img: "shots/onboard-pack.jpg", t: "Onboarding · packed for you", d: "Smart Setup's commute template: 5 items." },
+    { img: "shots/home.jpg", t: "Home", d: "Weather, readiness ring, Up Next, Latest Alert.", note: "Every card spins until the phone gets a GPS fix, even the checklist." },
+    { img: "shots/planner.jpg", t: "Planner", d: "Checklist only. Packing lives under Inventory.", note: "The coach tip takes a third of the screen on every tab." },
+    { img: "shots/inventory.jpg", t: "Inventory", d: "Your reusable essentials for this trip.", note: "Icons are per category, so the laptop and headphones get a plug and the water bottle a box." },
+    { img: "shots/map.jpg", t: "Map & Places", d: "Saved places with search or drop-a-pin.", note: "Same invisible search box. The Map tab's nav icon is nearly black on the dark bar." },
+    { img: "shots/live.jpg", t: "Live Tracking", d: "Arrival and departure zones.", note: "The empty-state card slides under the floating nav bar." }
+  ],
+  feedback: [
+    { said: "Lists cut off; couldn't reach rows past the first screen", did: "Real scroll containers on every screen, plus reachability tests", seen: ["ok", "Yes, 16 Aug"] },
+    { said: "Maps rendered black", did: "Swapped Google Maps for MapLibre + OpenFreeMap (no key, no billing)", seen: ["ok", "Yes, 17 Aug"] },
+    { said: "Alerts fired instantly, from India, for Tokyo zones", did: "First reading of a zone is a silent baseline; wrong-direction events dropped", seen: ["ok", "Yes, 17 Aug"] },
+    { said: "Onboarding didn't match the rest of the app", did: "Rebuilt twice; now a guided setup that creates your Office trip", seen: ["warn", "Web only"] },
+    { said: "Red 'Delete' on every row felt like an admin table", did: "Swipe left to reveal delete", seen: ["warn", "Web only"] },
+    { said: "Checklist 0/4 and Packing 0/6 felt like two chores", did: "One 'You're X% ready' ring on Home", seen: ["warn", "Web only"] },
+    { said: "Tabs flashed empty and re-spun on every switch", did: "Cached lists on Planner, Inventory, Map", seen: ["bad", "Partly: Home and Live still reload"] },
+    { said: "Glass cards looked like washed-out pink mud; white text unreadable", did: "Tried real blur (crashed the app), then moved to a dark navy theme with solid translucent cards", seen: ["warn", "Web only; whole look changed"] },
+    { said: "Buttons invisible (coral on coral) or looked disabled", did: "Shared button system; gradient primary buttons", seen: ["warn", "Web only"] },
+    { said: "First run showed only a bare '+'", did: "Guided onboarding plus a labelled '+ New trip'", seen: ["warn", "Web only"] },
+    { said: "'Dev mode: no email is sent' showing at login", did: "Guest 'Get Started' by default; email is optional", seen: ["warn", "Web only"] },
+    { said: "Empty lists stretched into giant hollow boxes", did: "Cards collapse to content until rows exist", seen: ["warn", "Web only"] },
+    { said: "Search can't find my office in Noida", did: "Drop a pin; the app names it from the nearest mapped area", seen: ["warn", "Web only"] }
+  ],
+  finds: [
+    { sev: ["bad", "Bug"], t: "Home is blocked on GPS", d: "All five Home cards wait for a location fix with no timeout, including the checklist and packing counts that don't need location. Indoors that can take 10–30 s; if the permission prompt is pending it never finishes.", ref: "app/src/screens/HomeScreen.tsx:133, :88" },
+    { sev: ["bad", "Bug"], t: "Search text is invisible", d: "The place-search field is hard-coded near-white while the dark theme gives it white text, so the placeholder and what you type disappear. Affects onboarding, Map and Live.", ref: "app/src/components/PlaceSearch.tsx:192" },
+    { sev: ["warn", "UX"], t: "Five coach tips straight after onboarding", d: "Each tab opens with a tip card about a third of the screen tall, right after onboarding has already explained the app.", ref: "app/src/components/GuidanceCard.tsx" },
+    { sev: ["warn", "UX"], t: "Names drifted from the design", d: "The mockups said Plan / Go / Track / Pack. The app now says Home / Planner / Map / Live / Inventory, and packing sits under Inventory while onboarding and Home call it packing.", ref: "app/src/navigation/RootNavigator.tsx:52–84" },
+    { sev: ["warn", "UX"], t: "Emoji nav icons", d: "The 🗺 Map icon almost vanishes on the dark bar, and emoji render differently on every Android skin.", ref: "app/src/navigation/RootNavigator.tsx" },
+    { sev: ["warn", "UX"], t: "Live empty state sits under the nav", d: "On a phone-height screen the 'No alert zones yet' card is partly hidden behind the floating nav bar at rest. Same class of bug as the Phase 7 scroll fix.", ref: "app/src/screens/ActiveTrackingScreen.tsx" },
+    { sev: ["muted", "Polish"], t: "One icon per category", d: "Icons come from the category, not the item, so Laptop and Headphones both get a plug and Water bottle gets a cardboard box.", ref: "app/src/screens/InventoryScreen.tsx:27–30" },
+    { sev: ["muted", "Hygiene"], t: "Flaky frontend test, stale package", d: "One jest failure in four runs (act() warnings in TripContext and PlaceSearch). expo-blur is still in package.json although nothing imports it.", ref: "app/src/context/__tests__, app/package.json" }
+  ],
+  steps: [
+    { id: "device", t: "Run main on your phone. No rebuild needed.", d: "Round 7 removed the only new native module, so the dev client you installed in August should run current main over Metro: scripts/dev.sh phone. Confirm with eas build:list first. Allow about 20 minutes and walk the TESTING.md checklist.", who: "You · 20 min" },
+    { id: "notes", t: "Write down what you don't like", d: "One rough list while it's fresh. Claude turns it into specs with /clutch-spec, so the build loop has real work again.", who: "You · 10 min" },
+    { id: "bugs", t: "Fix the two bugs found today", d: "Unblock Home from GPS (time-box the location lookup, load the rest immediately) and make the search field readable on the dark theme. Both are small.", who: "Claude · ready to go" },
+    { id: "linear", t: "Bring Linear back in sync", d: "Backfill Phases 7–13 as Done issues linked to PRs #16–#21, close the CLU-1 to CLU-4 onboarding issues, and group everything under a StepOut project. Needs your OK because it writes to Linear.", who: "Claude · needs OK" },
+    { id: "naming", t: "Decide the tab names and the Planner/Inventory split", d: "Product call: go back to Plan / Go / Track / Pack, or keep the current names. Consider merging checklist and packing into one 'Get ready' list, since Home already treats them as one number.", who: "You · decision" },
+    { id: "deploy", t: "Deploy the backend", d: "server/render.yaml is ready. Deploying lets the app work off your Wi-Fi and turns on real emailed sign-in links (set EMAIL_SENDER).", who: "You + Claude · ~1 h" },
+    { id: "migrate", t: "Add database migrations before real data", d: "Today a schema change means wiping the database. Add Alembic before you rely on the deployed app for real trips.", who: "Claude" },
+    { id: "hygiene", t: "Clean-up", d: "Fix the flaky test, drop the unused expo-blur dependency, delete the 21 merged branches.", who: "Claude · small" }
+  ],
+  lessons: [
+    { t: "Green tests can still ship a broken app", d: "Sixteen merged issues passed pytest and tsc while four of five screens couldn't scroll. Gates only certify what they measure, which is why the phone pass is its own layer.", tag: "Phase 7 · TESTING.md" },
+    { t: "The browser harness lies about looks", d: "Glass looked right on web and like muddy pink on the phone. Real blur rendered on web and crashed on Android. Visual work needs a device check.", tag: "Phases 11–13" },
+    { t: "'Independent' issues can collide on every file", d: "The reskin and the trip model shared no concepts but edited the same four screens. Compare the files each issue touches before calling them parallel.", tag: "CLU-16 / CLU-17 incident" },
+    { t: "Stale servers serve stale code", d: "Metro and uvicorn cache at start-up. A 404 on a new route and an unresolvable native module were both just old processes. scripts/dev.sh always restarts both.", tag: "Phase 8 device pass" },
+    { t: "Android reports where you are when you register a zone", d: "Registering zones fires 'transitions' for your current state. The first reading has to be a silent baseline or users get alerts for places they never went.", tag: "Phase 8" },
+    { t: "Google Maps needs billing even for testing", d: "The demo key rendered black tiles on Android. MapLibre with OpenFreeMap needs no key and no account.", tag: "Phase 8" },
+    { t: "OpenStreetMap doesn't know most Indian offices", d: "Infosys Bangalore resolves; Infosys Noida doesn't. It's a data gap, not a bug, so drop-a-pin plus reverse geocoding is the dependable path.", tag: "Phase 11" },
+    { t: "Native change means a rebuild; JS change means a reload", d: "A new native module needs a 10–15 minute EAS build. Everything else hot-reloads. EXPO_PUBLIC_* values are baked in when the bundle is built.", tag: "Environment" },
+    { t: "No migrations means schema changes wipe data", d: "SQLAlchemy create_all only adds missing tables, never columns. Fine for a prototype, not for real trips.", tag: "Known risk" },
+    { t: "Skipping the tracker breaks the loop", d: "/clutch-build and /clutch-review only see Linear. Once work moved to direct 'rounds', the automation went idle and the tracker went stale without anyone noticing.", tag: "Phases 7–13" }
+  ],
+  changelog: [
+    "17 Oct 2026: panel created. Gates re-run, Linear audited, screens captured from main 34fe0cf, roadmap header corrected."
+  ]
+};
+
+(function render() {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const chip = ([k, label]) => `<span class="chip c-${k}">${esc(label)}</span>`;
+  const fmt = (iso) => new Date(iso + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+  $("verdict").textContent = DATA.verdict;
+  $("asof").textContent = fmt(DATA.asOf);
+  const idle = Math.round((new Date(DATA.asOf) - new Date(DATA.lastCommit.date)) / 864e5);
+  $("idle").textContent = `${idle} days since last commit (${DATA.lastCommit.sha})`;
+
+  $("stats").innerHTML = DATA.stats.map((s) =>
+    `<div class="stat ${s.cls || ""}"><span class="num">${esc(s.num)}</span><span class="lbl">${esc(s.lbl)}</span><span class="sub">${esc(s.sub)}</span></div>`).join("");
+
+  const stateChip = { dev: ["ok", "Device"], web: ["warn", "Web only"], merged: ["acc", "Merged"], sup: ["muted", "Superseded"] };
+  $("route").innerHTML = DATA.phases.map((p) => `
+    <div class="stop">
+      <div class="track"><span class="dot ${p.state}"></span></div>
+      <span class="ph">${esc(p.ph)} · ${esc(p.date)}</span>
+      <span class="nm">${esc(p.name)}</span>
+      <span class="meta">${chip(stateChip[p.state])}${p.linear ? chip(["ok", p.linear]) : chip(["bad", "No Linear"])}<span class="chip c-muted">${esc(p.prs)}</span></span>
+      ${p.note ? `<span style="font-size:12.5px;color:var(--ink-3)">${esc(p.note)}</span>` : ""}
+    </div>`).join("");
+
+  $("sync").innerHTML = DATA.sync.map((r) =>
+    `<tr><td><b>${esc(r.ph)}</b></td><td>${chip(r.linear)}</td><td>${chip(r.gh)}</td><td>${chip(r.rm)}</td></tr>`).join("");
+
+  const done = DATA.checks.filter((c) => c.ok).length, total = DATA.checks.length;
+  const R = 44, C = 2 * Math.PI * R, frac = done / total;
+  $("ring").innerHTML =
+    `<circle cx="54" cy="54" r="${R}" fill="none" stroke="var(--sunken)" stroke-width="12"/>` +
+    `<circle cx="54" cy="54" r="${R}" fill="none" stroke="var(--accent)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${(C * frac).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 54 54)"/>` +
+    `<text x="54" y="60" text-anchor="middle" font-family="Bricolage Grotesque, system-ui, sans-serif" font-weight="800" font-size="22" fill="var(--ink)">${done}/${total}</text>`;
+  $("ringText").textContent = `${Math.round(frac * 100)}% ready to ship`;
+  $("checks").innerHTML = DATA.checks.map((c) =>
+    `<li><span class="mk ${c.ok ? "y" : "n"}">${c.ok ? "✓" : "✕"}</span><span>${esc(c.t)}<small>${esc(c.s)}</small></span></li>`).join("");
+
+  $("gallery").innerHTML = DATA.gallery.map((g) =>
+    `<figure><img src="${esc(g.img)}" alt="${esc(g.t)} screen" loading="lazy" width="390" height="844"><figcaption><b>${esc(g.t)}</b>${esc(g.d)}${g.note ? `<span class="note">${esc(g.note)}</span>` : ""}</figcaption></figure>`).join("");
+
+  $("feedback").innerHTML = DATA.feedback.map((f) =>
+    `<tr><td>${esc(f.said)}</td><td style="color:var(--ink-2)">${esc(f.did)}</td><td>${chip(f.seen)}</td></tr>`).join("");
+
+  $("finds").innerHTML = DATA.finds.map((f) =>
+    `<li><span>${chip(f.sev)}</span><div><h3>${esc(f.t)}</h3><p>${esc(f.d)}</p><p><code>${esc(f.ref)}</code></p></div></li>`).join("");
+
+  let ticked = {};
+  try { ticked = JSON.parse(localStorage.getItem("stepout-panel-steps") || "{}"); } catch (e) { ticked = {}; }
+  const steps = $("steps");
+  steps.innerHTML = DATA.steps.map((s) =>
+    `<li class="${ticked[s.id] ? "done" : ""}"><input type="checkbox" id="step-${s.id}" data-id="${s.id}" ${ticked[s.id] ? "checked" : ""} aria-label="Mark done: ${esc(s.t)}"><div><label class="t" for="step-${s.id}">${esc(s.t)}</label><p>${esc(s.d)}</p></div><span class="who">${esc(s.who)}</span></li>`).join("");
+  steps.addEventListener("change", (e) => {
+    const id = e.target.dataset.id; if (!id) return;
+    ticked[id] = e.target.checked;
+    e.target.closest("li").classList.toggle("done", e.target.checked);
+    try { localStorage.setItem("stepout-panel-steps", JSON.stringify(ticked)); } catch (err) { /* storage unavailable */ }
+  });
+
+  $("lessons").innerHTML = DATA.lessons.map((l) =>
+    `<details><summary>${esc(l.t)}</summary><p>${esc(l.d)}</p><span class="tag">${esc(l.tag)}</span></details>`).join("");
+
+  $("changelog").innerHTML = "<b>Panel history:</b> " + DATA.changelog.map(esc).join(" · ");
+})();
+</script>
