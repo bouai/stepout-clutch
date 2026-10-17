@@ -2,7 +2,7 @@
 
 Living progress-context doc. Update this whenever a phase completes or scope changes — this is the file a fresh session should read first to know where things stand.
 
-_Updated: 2026-08-25 — Phase 11 merged to main. Phase 12 (real frosted glass) and Phase 13 (dark-glass redesign to the new reference + configuring onboarding + contextual guidance) code-complete on `claude/round-7-real-glass-ux`, pending dev-client rebuild for device pass._
+_Updated: 2026-10-17 — Phases 12–13 merged to `main` via PR #21 (2026-09-04). Phase 12's `expo-blur` glass was removed in the final Round 7 commit (BlurView crashed the existing dev client), so current `main` is JS-only on top of the Phase 8 dev client and needs no native rebuild. Phases 9–13 still await a device pass (CLU-29). Linear is back in sync: StepOut project, Phases 7–13 backfilled as CLU-21 to CLU-27, next round queued as CLU-28 to CLU-36. Live status, screenshots and next steps: [dashboard/index.html](dashboard/index.html)._
 
 ## Status legend
 `[x]` done · `[~]` in progress · `[ ]` not started
@@ -167,7 +167,7 @@ Branch `claude/round-6-cache-and-pin` ([PR #20](https://github.com/bouai/stepout
 
 **Gates:** 167 pytest (from 165), 119 frontend tests, `tsc --noEmit` clean. Web-verified in the Expo harness (glass surfaces + white text confirmed via computed styles; swipe reveal confirmed).
 
-## Phase 12 — Real frosted glass + device-test UX polish `[x]` code complete (2026-08-25), device pass pending
+## Phase 12 — Real frosted glass + device-test UX polish `[x]` merged (#21); blur later removed, see Phase 13
 
 Branch `claude/round-7-real-glass-ux` (commit 673ad64). Acts on what the device pass revealed: the glass design failed on a real screen, and the user journey was broken for first-run.
 
@@ -203,7 +203,7 @@ Branch `claude/round-7-real-glass-ux`. Independent audit against a **new referen
 
 ## Next up
 
-- **EAS dev-client rebuild** with `expo-blur` included. Phases 12–13 require native modules (`npx eas-cli build --profile development --platform android`, ~15 min).
+- ~~**EAS dev-client rebuild** with `expo-blur` included.~~ No longer needed: the final Round 7 commit dropped `BlurView`, so `main` runs on the existing dev client (confirm with `eas build:list`).
 - **Device pass** on Phase 9 + 10 + 11 + 12 (Smart Setup, commute intelligence, auth, caching, drop-a-pin, swipe, real glass). Post-rebuild, test all tabs, tap maps to drop pins, swipe rows left, watch glass cards over the gradient, verify no regressions from phases 9–11.
 - **Deploy** (still deferred). `server/render.yaml` is ready and now carries the `EMAIL_SENDER` hook; deploying unblocks off-LAN use and real emailed magic links.
 

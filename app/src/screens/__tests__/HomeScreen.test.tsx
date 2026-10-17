@@ -1,7 +1,7 @@
 import * as Location from 'expo-location';
 
 import HomeScreen from '../HomeScreen';
-import { renderWithProviders, stubFetch, waitFor } from '../../test-utils';
+import { act, renderWithProviders, stubFetch, waitFor } from '../../test-utils';
 
 const WEATHER = {
   temperatureCelsius: 18.4,
@@ -203,5 +203,35 @@ describe('HomeScreen', () => {
     expect(calls.some((url) => url.includes('/geofence-events') && url.includes('tripId'))).toBe(
       false
     );
+  });
+
+  it('loads readiness without waiting for a GPS fix, then falls back to the default location', async () => {
+    jest.useFakeTimers();
+    try {
+      // A fix that never arrives, as indoors or with the permission prompt open.
+      (Location.getCurrentPositionAsync as jest.Mock).mockImplementationOnce(
+        () => new Promise(() => {})
+      );
+      stubFetch(
+        baseRoutes({
+          checklist: [{ id: 1, label: 'Badge', category: 'documents', isChecked: true }],
+        })
+      );
+      const view = await renderWithProviders(<HomeScreen />);
+
+      await waitFor(() => expect(view.getByTestId('home-ready')).toBeTruthy());
+      expect(view.queryByTestId('home-weather-summary')).toBeNull();
+
+      await act(async () => {
+        jest.advanceTimersByTime(8000);
+      });
+      await waitFor(() => expect(view.getByTestId('home-weather-summary')).toBeTruthy());
+      const calls = (global.fetch as jest.Mock).mock.calls.map((c) => String(c[0]));
+      expect(calls.some((url) => url.includes('/weather') && url.includes('lat=28.6139'))).toBe(
+        true
+      );
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

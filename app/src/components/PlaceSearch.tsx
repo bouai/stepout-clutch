@@ -117,7 +117,7 @@ export default function PlaceSearch({
         <TextInput
           style={styles.input}
           placeholder={placeholder}
-          placeholderTextColor={colors.textSecondary}
+          placeholderTextColor={colors.textTertiary}
           value={query}
           onChangeText={setQuery}
           autoCorrect={false}
@@ -181,15 +181,15 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    // Matches the shared TextField so light text sits on a dark field
+    // everywhere search appears (onboarding, Map, Live, trip setup sheet).
     borderWidth: 1,
-    borderColor: colors.cardTranslucentBorder,
+    borderColor: colors.glassBorder,
     borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
     paddingVertical: 10,
     color: colors.textPrimary,
-    // A solid frosted field so the dark input text reads whether this sits on
-    // the gradient (Transit / Tracking) or inside a white modal (trip setup).
-    backgroundColor: 'rgba(255,255,255,0.92)',
+    backgroundColor: colors.chipIdleBg,
   },
   spinner: {
     position: 'absolute',
