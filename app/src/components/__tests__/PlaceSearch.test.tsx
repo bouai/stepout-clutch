@@ -36,7 +36,7 @@ describe('PlaceSearch', () => {
     stubFetch([{ match: '/places', body: [INDIRANAGAR] }]);
     const view = await renderSearch();
 
-    fireEvent.changeText(view.getByTestId('place-search-input'), 'indiranagar');
+    await fireEvent.changeText(view.getByTestId('place-search-input'), 'indiranagar');
 
     await waitFor(() => expect(view.getByText('Indiranagar')).toBeTruthy());
     expect(view.getByText('Bengaluru, Karnataka, India')).toBeTruthy();
@@ -46,7 +46,7 @@ describe('PlaceSearch', () => {
     stubFetch([{ match: '/places', body: [] }]);
     const view = await renderSearch();
 
-    fireEvent.changeText(view.getByTestId('place-search-input'), 'a');
+    await fireEvent.changeText(view.getByTestId('place-search-input'), 'a');
 
     await waitFor(() => expect(view.queryByTestId('place-search-results')).toBeNull());
     expect(global.fetch).not.toHaveBeenCalled();
@@ -56,7 +56,7 @@ describe('PlaceSearch', () => {
     stubFetch([{ match: '/places', body: [INDIRANAGAR] }]);
     const view = await renderSearch();
 
-    fireEvent.changeText(view.getByTestId('place-search-input'), 'indiranagar');
+    await fireEvent.changeText(view.getByTestId('place-search-input'), 'indiranagar');
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalled());
     expect(String((global.fetch as jest.Mock).mock.calls[0][0])).toContain(
@@ -69,10 +69,10 @@ describe('PlaceSearch', () => {
     const onSelect = jest.fn();
     const view = await renderSearch({ onSelect });
 
-    fireEvent.changeText(view.getByTestId('place-search-input'), 'bengaluru');
+    await fireEvent.changeText(view.getByTestId('place-search-input'), 'bengaluru');
 
     await waitFor(() => expect(view.getByTestId('place-search-result-1')).toBeTruthy());
-    fireEvent.press(view.getByTestId('place-search-result-1'));
+    await fireEvent.press(view.getByTestId('place-search-result-1'));
 
     expect(onSelect).toHaveBeenCalledWith(KORAMANGALA);
   });
@@ -81,10 +81,10 @@ describe('PlaceSearch', () => {
     stubFetch([{ match: '/places', body: [INDIRANAGAR] }]);
     const view = await renderSearch();
 
-    fireEvent.changeText(view.getByTestId('place-search-input'), 'indiranagar');
+    await fireEvent.changeText(view.getByTestId('place-search-input'), 'indiranagar');
     await waitFor(() => expect(view.getByTestId('place-search-result-0')).toBeTruthy());
 
-    fireEvent.press(view.getByTestId('place-search-result-0'));
+    await fireEvent.press(view.getByTestId('place-search-result-0'));
 
     await waitFor(() => expect(view.queryByTestId('place-search-results')).toBeNull());
     expect(view.getByTestId('place-search-input').props.value).toBe('');
@@ -94,7 +94,7 @@ describe('PlaceSearch', () => {
     stubFetch([{ match: '/places', body: [INDIRANAGAR] }]);
     const view = await renderSearch({ near: { latitude: 12.97, longitude: 77.59 } });
 
-    fireEvent.changeText(view.getByTestId('place-search-input'), 'airport');
+    await fireEvent.changeText(view.getByTestId('place-search-input'), 'airport');
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalled());
     const url = String((global.fetch as jest.Mock).mock.calls[0][0]);
@@ -106,7 +106,7 @@ describe('PlaceSearch', () => {
     stubFetch([{ match: '/places', body: [INDIRANAGAR] }]);
     const view = await renderSearch({ near: null });
 
-    fireEvent.changeText(view.getByTestId('place-search-input'), 'airport');
+    await fireEvent.changeText(view.getByTestId('place-search-input'), 'airport');
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalled());
     expect(String((global.fetch as jest.Mock).mock.calls[0][0])).not.toContain('lat=');
@@ -116,7 +116,7 @@ describe('PlaceSearch', () => {
     stubFetch([{ match: '/places', body: [] }]);
     const view = await renderSearch();
 
-    fireEvent.changeText(view.getByTestId('place-search-input'), 'zzzzzz');
+    await fireEvent.changeText(view.getByTestId('place-search-input'), 'zzzzzz');
 
     await waitFor(() => expect(view.getByTestId('place-search-empty')).toBeTruthy());
     expect(view.queryByTestId('place-search-error')).toBeNull();
@@ -126,7 +126,7 @@ describe('PlaceSearch', () => {
     stubFetch([{ match: '/places', body: null, ok: false }]);
     const view = await renderSearch();
 
-    fireEvent.changeText(view.getByTestId('place-search-input'), 'indiranagar');
+    await fireEvent.changeText(view.getByTestId('place-search-input'), 'indiranagar');
 
     await waitFor(() => expect(view.getByTestId('place-search-error')).toBeTruthy());
     expect(view.queryByTestId('place-search-empty')).toBeNull();
@@ -137,10 +137,10 @@ describe('PlaceSearch', () => {
     const view = await renderSearch();
     const input = view.getByTestId('place-search-input');
 
-    fireEvent.changeText(input, 'indiranagar');
+    await fireEvent.changeText(input, 'indiranagar');
     await waitFor(() => expect(view.getByTestId('place-search-results')).toBeTruthy());
 
-    fireEvent.changeText(input, '');
+    await fireEvent.changeText(input, '');
 
     await waitFor(() => expect(view.queryByTestId('place-search-results')).toBeNull());
   });
