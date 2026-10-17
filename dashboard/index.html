@@ -215,7 +215,7 @@ details .tag { font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-3
     <section>
       <div class="sec-head"><h2>Linear vs. the code</h2><p>Out of sync since 16 Aug.</p></div>
       <div class="panel">
-        <div class="callout" style="margin-bottom:14px">Linear's Clutch Intelligence team ends at <b>CLU-20</b> (Phase 6, 10 Aug). Phases 7–13 shipped as six direct PRs (#16–#21) with no issues at all, so the <code>/clutch-build</code> queue has nothing in it. The team also has no project and four onboarding issues (CLU-1 to CLU-4) still in Todo.</div>
+        <div class="callout" style="margin-bottom:14px">Back in sync on 17 Oct. Phases 7–13 had shipped as direct PRs with no issues; they are now <b>CLU-21 to CLU-27</b> (Done). Everything sits in the <b>StepOut</b> project under three milestones, and the next round starts in <b>Device pass &amp; ship</b> (CLU-28 to CLU-36). Nothing carries <code>agent-ready</code> yet; that label is yours to apply.</div>
         <div class="tbl-wrap"><table class="tbl-sync"><thead><tr><th>Phase</th><th>Linear</th><th>GitHub</th><th>Roadmap</th></tr></thead><tbody id="sync"></tbody></table></div>
       </div>
     </section>
@@ -285,50 +285,51 @@ const DATA = {
   lastCommit: { date: "2026-09-04", sha: "34fe0cf", what: "Merged PR #21 (Round 7)" },
   verdict: "StepOut is a working personal commute-and-trip app: smart trip setup, weather-aware packing, background arrival/departure alerts, email sign-in, and a new dark design. All of it is merged to main. What's missing is proof and plumbing: the last five phases were never tried on your phone, Linear stopped tracking after Phase 6, and the backend still only runs on your laptop's Wi-Fi.",
   stats: [
-    { num: "21 / 0", lbl: "PRs merged / open", sub: "#1 to #21, nothing in flight" },
+    { num: "21 / 1", lbl: "PRs merged / open", sub: "#22 open: this panel + 2 fixes" },
     { num: "167", lbl: "Backend tests passing", sub: "pytest, 7.8s" },
-    { num: "119", lbl: "Frontend tests passing", sub: "1 flaky failure in 4 runs", cls: "flag" },
+    { num: "120", lbl: "Frontend tests passing", sub: "1 flaky failure seen in 4 runs", cls: "flag" },
     { num: "5", lbl: "Phases never seen on device", sub: "Phases 9 to 13", cls: "bad" },
-    { num: "7", lbl: "Phases missing from Linear", sub: "Phases 7 to 13", cls: "bad" }
+    { num: "0", lbl: "Phases missing from Linear", sub: "Backfilled as CLU-21 to CLU-27" }
   ],
   // state: dev = verified on phone, web = browser harness only, merged = early loop, sup = superseded
   phases: [
     { ph: "Loops 1–7", name: "Core app: checklist, weather, map, inventory, geofences", date: "5–8 Aug", prs: "#1–#7", linear: "CLU-5–11", state: "merged" },
     { ph: "Phase 0–1", name: "Stabilisation after first device test", date: "9 Aug", prs: "#8–#10", linear: "CLU-12–15", state: "dev" },
     { ph: "Phase 2–6", name: "Reskin, trips, alert log, Home, onboarding", date: "9–10 Aug", prs: "#11–#15", linear: "CLU-16–20", state: "dev" },
-    { ph: "Phase 7", name: "MVP hardening: scroll, UTC, background geofencing", date: "16 Aug", prs: "#16", linear: null, state: "dev" },
-    { ph: "Phase 8", name: "Personal use: MapLibre maps, place search, no false alerts", date: "16–17 Aug", prs: "#17", linear: null, state: "dev" },
-    { ph: "Phase 9", name: "Browser harness + Smart trip setup", date: "17 Aug", prs: "#18", linear: null, state: "web" },
-    { ph: "Phase 10", name: "Commute intelligence + magic-link accounts", date: "17 Aug", prs: "#19", linear: null, state: "web" },
-    { ph: "Phase 11", name: "Caching, drop-a-pin, one readiness ring, swipe-delete", date: "18 Aug", prs: "#20", linear: null, state: "web" },
-    { ph: "Phase 12", name: "Real frosted glass (expo-blur)", date: "25 Aug", prs: "#21", linear: null, state: "sup", note: "Blur crashed on device; removed" },
-    { ph: "Phase 13", name: "Dark redesign, guided onboarding, coach tips", date: "27 Aug → 4 Sep", prs: "#21", linear: null, state: "web" }
+    { ph: "Phase 7", name: "MVP hardening: scroll, UTC, background geofencing", date: "16 Aug", prs: "#16", linear: "CLU-21", state: "dev" },
+    { ph: "Phase 8", name: "Personal use: MapLibre maps, place search, no false alerts", date: "16–17 Aug", prs: "#17", linear: "CLU-22", state: "dev" },
+    { ph: "Phase 9", name: "Browser harness + Smart trip setup", date: "17 Aug", prs: "#18", linear: "CLU-23", state: "web" },
+    { ph: "Phase 10", name: "Commute intelligence + magic-link accounts", date: "17 Aug", prs: "#19", linear: "CLU-24", state: "web" },
+    { ph: "Phase 11", name: "Caching, drop-a-pin, one readiness ring, swipe-delete", date: "18 Aug", prs: "#20", linear: "CLU-25", state: "web" },
+    { ph: "Phase 12", name: "Real frosted glass (expo-blur)", date: "25 Aug", prs: "#21", linear: "CLU-26", state: "sup", note: "Blur crashed on device; removed" },
+    { ph: "Phase 13", name: "Dark redesign, guided onboarding, coach tips", date: "27 Aug → 4 Sep", prs: "#21", linear: "CLU-27", state: "web" }
   ],
   sync: [
     { ph: "Loops 1–7", linear: ["ok", "CLU-5–11 Done"], gh: ["ok", "#1–#7 merged"], rm: ["ok", "Accurate"] },
     { ph: "Phase 0–1", linear: ["ok", "CLU-12–15 Done"], gh: ["ok", "#8–#10 merged"], rm: ["ok", "Accurate"] },
     { ph: "Phase 2–6", linear: ["ok", "CLU-16–20 Done"], gh: ["ok", "#11–#15 merged"], rm: ["ok", "Accurate"] },
-    { ph: "Phase 7–11", linear: ["bad", "No issues"], gh: ["ok", "#16–#20 merged"], rm: ["ok", "Accurate"] },
-    { ph: "Phase 12", linear: ["bad", "No issue"], gh: ["ok", "In #21"], rm: ["warn", "Fixed today: blur was removed"] },
-    { ph: "Phase 13", linear: ["bad", "No issue"], gh: ["ok", "#21 merged 4 Sep"], rm: ["warn", "Fixed today: said 'pending'"] },
-    { ph: "Housekeeping", linear: ["warn", "CLU-1–4 onboarding junk, no project"], gh: ["warn", "21 merged branches not deleted"], rm: ["muted", "n/a"] }
+    { ph: "Phase 7–11", linear: ["ok", "CLU-21–25 Done (backfilled)"], gh: ["ok", "#16–#20 merged"], rm: ["ok", "Accurate"] },
+    { ph: "Phase 12", linear: ["ok", "CLU-26 Done (backfilled)"], gh: ["ok", "In #21"], rm: ["ok", "Corrected 17 Oct"] },
+    { ph: "Phase 13", linear: ["ok", "CLU-27 Done (backfilled)"], gh: ["ok", "#21 merged 4 Sep"], rm: ["ok", "Corrected 17 Oct"] },
+    { ph: "Next round", linear: ["acc", "CLU-28 In Review, CLU-29–36 queued"], gh: ["warn", "#22 open"], rm: ["ok", "Accurate"] },
+    { ph: "Housekeeping", linear: ["ok", "StepOut project; CLU-1–4 canceled"], gh: ["warn", "21 merged branches (CLU-36)"], rm: ["muted", "n/a"] }
   ],
   checks: [
-    { ok: true, t: "Everything merged to main", s: "No open PRs or stray work" },
-    { ok: true, t: "Automated gates green", s: "167 pytest, 119 jest, tsc clean; one flaky jest run" },
+    { ok: true, t: "Work is on main or in review", s: "PR #22 (panel + CLU-28) awaiting review" },
+    { ok: true, t: "Automated gates green", s: "167 pytest, 120 jest, tsc clean; one flaky jest run" },
     { ok: true, t: "Roadmap matches reality", s: "Corrected on 17 Oct alongside this panel" },
     { ok: false, t: "Seen working on your phone", s: "Last full device pass was Phase 8, 17 Aug" },
-    { ok: false, t: "Linear in sync", s: "Stops at CLU-20; 7 phases untracked" },
+    { ok: true, t: "Linear in sync", s: "StepOut project, CLU-5 to CLU-36, synced 17 Oct" },
     { ok: false, t: "Runs off your Wi-Fi", s: "Backend not deployed; render.yaml is ready" }
   ],
   gallery: [
     { img: "shots/welcome.jpg", t: "Welcome", d: "Guest sign-in by default. Email sync is the secondary path." },
-    { img: "shots/onboard-trip.jpg", t: "Onboarding · first trip", d: "Creates a real Office commute trip.", note: "The location search box is near-white with white text, so you can't see what you type." },
+    { img: "shots/onboard-trip.jpg", t: "Onboarding · first trip", d: "Creates a real Office commute trip.", note: "Fixed in CLU-28: the search box was near-white with white text." },
     { img: "shots/onboard-pack.jpg", t: "Onboarding · packed for you", d: "Smart Setup's commute template: 5 items." },
-    { img: "shots/home.jpg", t: "Home", d: "Weather, readiness ring, Up Next, Latest Alert.", note: "Every card spins until the phone gets a GPS fix, even the checklist." },
+    { img: "shots/home.jpg", t: "Home", d: "Weather, readiness ring, Up Next, Latest Alert.", note: "Fixed in CLU-28: every card used to wait for a GPS fix." },
     { img: "shots/planner.jpg", t: "Planner", d: "Checklist only. Packing lives under Inventory.", note: "The coach tip takes a third of the screen on every tab." },
     { img: "shots/inventory.jpg", t: "Inventory", d: "Your reusable essentials for this trip.", note: "Icons are per category, so the laptop and headphones get a plug and the water bottle a box." },
-    { img: "shots/map.jpg", t: "Map & Places", d: "Saved places with search or drop-a-pin.", note: "Same invisible search box. The Map tab's nav icon is nearly black on the dark bar." },
+    { img: "shots/map.jpg", t: "Map & Places", d: "Saved places with search or drop-a-pin.", note: "Search box fixed (CLU-28). The Map tab's nav icon is still nearly black on the dark bar." },
     { img: "shots/live.jpg", t: "Live Tracking", d: "Arrival and departure zones.", note: "The empty-state card slides under the floating nav bar." }
   ],
   feedback: [
@@ -347,24 +348,23 @@ const DATA = {
     { said: "Search can't find my office in Noida", did: "Drop a pin; the app names it from the nearest mapped area", seen: ["warn", "Web only"] }
   ],
   finds: [
-    { sev: ["bad", "Bug"], t: "Home is blocked on GPS", d: "All five Home cards wait for a location fix with no timeout, including the checklist and packing counts that don't need location. Indoors that can take 10–30 s; if the permission prompt is pending it never finishes.", ref: "app/src/screens/HomeScreen.tsx:133, :88" },
-    { sev: ["bad", "Bug"], t: "Search text is invisible", d: "The place-search field is hard-coded near-white while the dark theme gives it white text, so the placeholder and what you type disappear. Affects onboarding, Map and Live.", ref: "app/src/components/PlaceSearch.tsx:192" },
-    { sev: ["warn", "UX"], t: "Five coach tips straight after onboarding", d: "Each tab opens with a tip card about a third of the screen tall, right after onboarding has already explained the app.", ref: "app/src/components/GuidanceCard.tsx" },
-    { sev: ["warn", "UX"], t: "Names drifted from the design", d: "The mockups said Plan / Go / Track / Pack. The app now says Home / Planner / Map / Live / Inventory, and packing sits under Inventory while onboarding and Home call it packing.", ref: "app/src/navigation/RootNavigator.tsx:52–84" },
-    { sev: ["warn", "UX"], t: "Emoji nav icons", d: "The 🗺 Map icon almost vanishes on the dark bar, and emoji render differently on every Android skin.", ref: "app/src/navigation/RootNavigator.tsx" },
-    { sev: ["warn", "UX"], t: "Live empty state sits under the nav", d: "On a phone-height screen the 'No alert zones yet' card is partly hidden behind the floating nav bar at rest. Same class of bug as the Phase 7 scroll fix.", ref: "app/src/screens/ActiveTrackingScreen.tsx" },
-    { sev: ["muted", "Polish"], t: "One icon per category", d: "Icons come from the category, not the item, so Laptop and Headphones both get a plug and Water bottle gets a cardboard box.", ref: "app/src/screens/InventoryScreen.tsx:27–30" },
-    { sev: ["muted", "Hygiene"], t: "Flaky frontend test, stale package", d: "One jest failure in four runs (act() warnings in TripContext and PlaceSearch). expo-blur is still in package.json although nothing imports it.", ref: "app/src/context/__tests__, app/package.json" }
+    { sev: ["ok", "Fixed · CLU-28"], t: "Home is blocked on GPS", d: "All five Home cards wait for a location fix with no timeout, including the checklist and packing counts that don't need location. Indoors that can take 10–30 s; if the permission prompt is pending it never finishes.", ref: "app/src/screens/HomeScreen.tsx:133, :88" },
+    { sev: ["ok", "Fixed · CLU-28"], t: "Search text is invisible", d: "The place-search field is hard-coded near-white while the dark theme gives it white text, so the placeholder and what you type disappear. Affects onboarding, Map and Live.", ref: "app/src/components/PlaceSearch.tsx:192" },
+    { sev: ["warn", "UX"], t: "Five coach tips straight after onboarding", d: "Each tab opens with a tip card about a third of the screen tall, right after onboarding has already explained the app.", ref: "CLU-31 · app/src/components/GuidanceCard.tsx" },
+    { sev: ["warn", "UX"], t: "Names drifted from the design", d: "The mockups said Plan / Go / Track / Pack. The app now says Home / Planner / Map / Live / Inventory, and packing sits under Inventory while onboarding and Home call it packing.", ref: "CLU-30 · app/src/navigation/RootNavigator.tsx:52–84" },
+    { sev: ["warn", "UX"], t: "Emoji nav icons", d: "The 🗺 Map icon almost vanishes on the dark bar, and emoji render differently on every Android skin.", ref: "CLU-32 · app/src/navigation/RootNavigator.tsx" },
+    { sev: ["warn", "UX"], t: "Live empty state sits under the nav", d: "On a phone-height screen the 'No alert zones yet' card is partly hidden behind the floating nav bar at rest. Same class of bug as the Phase 7 scroll fix.", ref: "CLU-32 · app/src/screens/ActiveTrackingScreen.tsx" },
+    { sev: ["muted", "Polish"], t: "One icon per category", d: "Icons come from the category, not the item, so Laptop and Headphones both get a plug and Water bottle gets a cardboard box.", ref: "CLU-32 · app/src/screens/InventoryScreen.tsx:27–30" },
+    { sev: ["muted", "Hygiene"], t: "Flaky frontend test, stale package", d: "One jest failure in four runs (act() warnings in TripContext and PlaceSearch). expo-blur is still in package.json although nothing imports it.", ref: "CLU-36 · app/src/context/__tests__, app/package.json" }
   ],
   steps: [
-    { id: "device", t: "Run main on your phone. No rebuild needed.", d: "Round 7 removed the only new native module, so the dev client you installed in August should run current main over Metro: scripts/dev.sh phone. Confirm with eas build:list first. Allow about 20 minutes and walk the TESTING.md checklist.", who: "You · 20 min" },
-    { id: "notes", t: "Write down what you don't like", d: "One rough list while it's fresh. Claude turns it into specs with /clutch-spec, so the build loop has real work again.", who: "You · 10 min" },
-    { id: "bugs", t: "Fix the two bugs found today", d: "Unblock Home from GPS (time-box the location lookup, load the rest immediately) and make the search field readable on the dark theme. Both are small.", who: "Claude · ready to go" },
-    { id: "linear", t: "Bring Linear back in sync", d: "Backfill Phases 7–13 as Done issues linked to PRs #16–#21, close the CLU-1 to CLU-4 onboarding issues, and group everything under a StepOut project. Needs your OK because it writes to Linear.", who: "Claude · needs OK" },
-    { id: "naming", t: "Decide the tab names and the Planner/Inventory split", d: "Product call: go back to Plan / Go / Track / Pack, or keep the current names. Consider merging checklist and packing into one 'Get ready' list, since Home already treats them as one number.", who: "You · decision" },
-    { id: "deploy", t: "Deploy the backend", d: "server/render.yaml is ready. Deploying lets the app work off your Wi-Fi and turns on real emailed sign-in links (set EMAIL_SENDER).", who: "You + Claude · ~1 h" },
-    { id: "migrate", t: "Add database migrations before real data", d: "Today a schema change means wiping the database. Add Alembic before you rely on the deployed app for real trips.", who: "Claude" },
-    { id: "hygiene", t: "Clean-up", d: "Fix the flaky test, drop the unused expo-blur dependency, delete the 21 merged branches.", who: "Claude · small" }
+    { id: "device", t: "Run main on your phone. No rebuild needed. (CLU-29)", d: "Round 7 removed the only new native module, so the dev client you installed in August should run current main over Metro: scripts/dev.sh phone. Confirm with eas build:list first. Include PR #22's branch so the two fixes get a phone check too.", who: "You · 20 min" },
+    { id: "notes", t: "Write down what you don't like", d: "One rough list while it's fresh. Paste it to Claude: each item becomes a /clutch-spec issue under Device pass & ship.", who: "You · 10 min" },
+    { id: "bugs", t: "Fix the two bugs found on 17 Oct (CLU-28)", d: "Done: Home no longer waits on GPS, and search text is readable. In PR #22, waiting on your review and a phone check.", who: "Done · in review" },
+    { id: "linear", t: "Bring Linear back in sync", d: "Done: StepOut project with three milestones, Phases 7–13 backfilled as CLU-21 to CLU-27, CLU-1 to CLU-4 canceled, next round drafted as CLU-29 to CLU-36.", who: "Done" },
+    { id: "naming", t: "Decide the tab names and the Planner/Inventory split (CLU-30)", d: "Product call: go back to Plan / Go / Track / Pack, or keep the current names. Consider merging checklist and packing into one 'Get ready' list, since Home already treats them as one number.", who: "You · decision" },
+    { id: "approve", t: "Approve what the loop may build", d: "Read the Backlog drafts (CLU-31 to CLU-36), have Claude run /clutch-spec on the ones you want, then apply agent-ready. /clutch-build only picks up approved issues.", who: "You" },
+    { id: "deploy", t: "Deploy the backend (CLU-34) after migrations (CLU-35)", d: "server/render.yaml is ready. Deploying lets the app work off your Wi-Fi and turns on real emailed sign-in links (set EMAIL_SENDER). Add Alembic first so real data survives schema changes.", who: "You + Claude · ~1 h" }
   ],
   lessons: [
     { t: "Green tests can still ship a broken app", d: "Sixteen merged issues passed pytest and tsc while four of five screens couldn't scroll. Gates only certify what they measure, which is why the phone pass is its own layer.", tag: "Phase 7 · TESTING.md" },
@@ -379,7 +379,8 @@ const DATA = {
     { t: "Skipping the tracker breaks the loop", d: "/clutch-build and /clutch-review only see Linear. Once work moved to direct 'rounds', the automation went idle and the tracker went stale without anyone noticing.", tag: "Phases 7–13" }
   ],
   changelog: [
-    "17 Oct 2026: panel created. Gates re-run, Linear audited, screens captured from main 34fe0cf, roadmap header corrected."
+    "17 Oct 2026: panel created. Gates re-run, Linear audited, screens captured from main 34fe0cf, roadmap header corrected.",
+    "17 Oct 2026 (later): CLU-28 fixes in PR #22; Linear re-synced (StepOut project, CLU-21 to CLU-36)."
   ]
 };
 

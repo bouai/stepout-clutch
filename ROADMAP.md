@@ -2,7 +2,7 @@
 
 Living progress-context doc. Update this whenever a phase completes or scope changes — this is the file a fresh session should read first to know where things stand.
 
-_Updated: 2026-10-17 — Phases 12–13 merged to `main` via PR #21 (2026-09-04). Phase 12's `expo-blur` glass was removed in the final Round 7 commit (BlurView crashed the existing dev client), so current `main` is JS-only on top of the Phase 8 dev client and needs no native rebuild. Phases 9–13 still await a device pass. Linear (Clutch Intelligence) has no issues for Phases 7–13. Live status, screenshots and next steps: [dashboard/index.html](dashboard/index.html)._
+_Updated: 2026-10-17 — Phases 12–13 merged to `main` via PR #21 (2026-09-04). Phase 12's `expo-blur` glass was removed in the final Round 7 commit (BlurView crashed the existing dev client), so current `main` is JS-only on top of the Phase 8 dev client and needs no native rebuild. Phases 9–13 still await a device pass (CLU-29). Linear is back in sync: StepOut project, Phases 7–13 backfilled as CLU-21 to CLU-27, next round queued as CLU-28 to CLU-36. Live status, screenshots and next steps: [dashboard/index.html](dashboard/index.html)._
 
 ## Status legend
 `[x]` done · `[~]` in progress · `[ ]` not started
