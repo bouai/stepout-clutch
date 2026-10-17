@@ -26,6 +26,7 @@ import { formatRelativeTime } from '../utils/time';
 
 const DEFAULT_LATITUDE = 28.6139;
 const DEFAULT_LONGITUDE = 77.209;
+const LOCATION_TIMEOUT_MS = 8000;
 
 type WeatherStatus = 'loading' | 'ready' | 'unavailable';
 type ProgressStatus = 'loading' | 'ready';
@@ -85,7 +86,18 @@ async function resolveCoordinates(): Promise<{
     if (status !== 'granted') {
       return { latitude: DEFAULT_LATITUDE, longitude: DEFAULT_LONGITUDE, usedDefault: true };
     }
-    const position = await Location.getCurrentPositionAsync();
+    // A cold GPS fix indoors can take tens of seconds; cap the wait and fall
+    // back to the default so weather and "up next" never spin indefinitely.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const position = await Promise.race([
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), LOCATION_TIMEOUT_MS);
+      }),
+    ]).finally(() => clearTimeout(timer));
+    if (!position) {
+      return { latitude: DEFAULT_LATITUDE, longitude: DEFAULT_LONGITUDE, usedDefault: true };
+    }
     return {
       latitude: position.coords.latitude,
       longitude: position.coords.longitude,
@@ -130,19 +142,32 @@ export default function HomeScreen() {
       setNearestStatus('loading');
       setAlertStatus('loading');
 
-      const device = await resolveCoordinates();
-      if (isCancelled()) return;
+      // Only weather (without trip coordinates) and "up next" need the device
+      // position. Resolve it lazily and at most once, so the checklist, packing
+      // and alert cards load immediately instead of waiting on a GPS fix.
+      let devicePromise: ReturnType<typeof resolveCoordinates> | null = null;
+      const getDevice = () => (devicePromise ??= resolveCoordinates());
 
       const hasTripCoords =
         currentTrip?.latitude != null && currentTrip?.longitude != null;
-      const weatherLat = hasTripCoords ? currentTrip!.latitude! : device.latitude;
-      const weatherLon = hasTripCoords ? currentTrip!.longitude! : device.longitude;
-      setUsedDefaultLocation(hasTripCoords ? false : device.usedDefault);
 
       async function loadWeather() {
         try {
+          let lat: number;
+          let lon: number;
+          if (hasTripCoords) {
+            lat = currentTrip!.latitude!;
+            lon = currentTrip!.longitude!;
+            setUsedDefaultLocation(false);
+          } else {
+            const device = await getDevice();
+            if (isCancelled()) return;
+            lat = device.latitude;
+            lon = device.longitude;
+            setUsedDefaultLocation(device.usedDefault);
+          }
           const data = await apiRequest<Weather>('/weather', {
-            query: { lat: weatherLat, lon: weatherLon },
+            query: { lat, lon },
           });
           if (!isCancelled()) {
             setWeather(data);
@@ -190,6 +215,8 @@ export default function HomeScreen() {
             }
             return;
           }
+          const device = await getDevice();
+          if (isCancelled()) return;
           const withDistances = await Promise.all(
             destinations.map(async (destination) => {
               const distance = await apiRequest<Distance>(
