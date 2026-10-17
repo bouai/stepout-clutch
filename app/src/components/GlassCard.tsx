@@ -24,8 +24,8 @@ interface GlassCardProps {
  * edge. Hero cards get an extra top sheen for depth.
  *
  * Uses a solid translucent fill rather than a native backdrop blur: on the dark
- * background the blur is barely perceptible, and requiring the native `expo-blur`
- * module crashed the app on dev-client builds that don't bundle it.
+ * background the blur is barely perceptible, and a native blur module crashed
+ * the app on dev-client builds that didn't bundle it, so none is installed.
  *
  * The fill/sheen layers are absolutely positioned, so the caller's `style`
  * (padding, margin, flex layout) applies to the children exactly as on a plain

@@ -18,7 +18,7 @@ describe('TripSwitcher trip-type picker', () => {
       </TripProvider>
     );
 
-    fireEvent.press(view.getByTestId('trip-add-button'));
+    await fireEvent.press(view.getByTestId('trip-add-button'));
     await waitFor(() => expect(view.getByTestId('trip-name-input')).toBeTruthy());
 
     for (const type of ['commute', 'day-trip', 'overnight', 'business', 'flight', 'other']) {
@@ -34,14 +34,14 @@ describe('TripSwitcher trip-type picker', () => {
       </TripProvider>
     );
 
-    fireEvent.press(view.getByTestId('trip-add-button'));
+    await fireEvent.press(view.getByTestId('trip-add-button'));
     await waitFor(() => expect(view.getByTestId('trip-type-commute')).toBeTruthy());
 
     // Selecting then re-pressing toggles it off; both are no-throw interactions
     // that would crash if the handler were wired wrong.
     const commute = view.getByTestId('trip-type-commute');
-    fireEvent.press(commute);
-    fireEvent.press(commute);
+    await fireEvent.press(commute);
+    await fireEvent.press(commute);
     expect(commute).toBeTruthy();
   });
 });

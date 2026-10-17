@@ -1,15 +1,23 @@
 import { Alert } from 'react-native';
 
 import SettingsSheet from '../SettingsSheet';
-import { fireEvent, renderWithSafeArea, stubFetch, waitFor } from '../../test-utils';
+import { act, fireEvent, renderWithSafeArea, stubFetch, waitFor } from '../../test-utils';
 
-/** Taps the given button in the Alert.alert spy's most recent call. */
-function pressAlertButton(label: string) {
+/**
+ * Taps the given button in the Alert.alert spy's most recent call.
+ *
+ * Wrapped in act because the native dialog's callback runs outside RNTL's
+ * event helpers, so the state updates it triggers would otherwise land
+ * outside act.
+ */
+async function pressAlertButton(label: string) {
   const spy = Alert.alert as unknown as jest.Mock;
   const buttons = spy.mock.calls.at(-1)?.[2] ?? [];
   const button = buttons.find((b: { text: string }) => b.text === label);
   expect(button).toBeDefined();
-  return button.onPress?.();
+  await act(async () => {
+    await button.onPress?.();
+  });
 }
 
 describe('SettingsSheet', () => {
@@ -44,7 +52,7 @@ describe('SettingsSheet', () => {
       <SettingsSheet visible onClose={jest.fn()} onReset={jest.fn()} />
     );
 
-    fireEvent.press(view.getByTestId('settings-reset-button'));
+    await fireEvent.press(view.getByTestId('settings-reset-button'));
 
     expect(Alert.alert).toHaveBeenCalled();
     expect(global.fetch).not.toHaveBeenCalled();
@@ -56,8 +64,8 @@ describe('SettingsSheet', () => {
       <SettingsSheet visible onClose={jest.fn()} onReset={jest.fn()} />
     );
 
-    fireEvent.press(view.getByTestId('settings-reset-button'));
-    pressAlertButton('Cancel');
+    await fireEvent.press(view.getByTestId('settings-reset-button'));
+    await pressAlertButton('Cancel');
 
     expect(global.fetch).not.toHaveBeenCalled();
   });
@@ -70,7 +78,7 @@ describe('SettingsSheet', () => {
       <SettingsSheet visible onClose={onClose} onReset={onReset} />
     );
 
-    fireEvent.press(view.getByTestId('settings-reset-button'));
+    await fireEvent.press(view.getByTestId('settings-reset-button'));
     await pressAlertButton('Delete everything');
 
     await waitFor(() => expect(onReset).toHaveBeenCalled());
@@ -88,7 +96,7 @@ describe('SettingsSheet', () => {
       <SettingsSheet visible onClose={jest.fn()} onReset={onReset} />
     );
 
-    fireEvent.press(view.getByTestId('settings-reset-button'));
+    await fireEvent.press(view.getByTestId('settings-reset-button'));
     await pressAlertButton('Delete everything');
 
     await waitFor(() =>
@@ -103,7 +111,7 @@ describe('SettingsSheet', () => {
       <SettingsSheet visible onClose={onClose} onReset={jest.fn()} />
     );
 
-    fireEvent.press(view.getByTestId('settings-close-button'));
+    await fireEvent.press(view.getByTestId('settings-close-button'));
 
     expect(onClose).toHaveBeenCalled();
   });

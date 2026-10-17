@@ -77,7 +77,7 @@ describe.each(SCREENS)('%s error states', (_name, Screen, prefix) => {
     await waitFor(() => expect(view.getByTestId(`${prefix}-retry`)).toBeTruthy());
 
     stubFetch(EMPTY_OK);
-    fireEvent.press(view.getByTestId(`${prefix}-retry`));
+    await fireEvent.press(view.getByTestId(`${prefix}-retry`));
 
     await waitFor(() => expect(view.getByTestId(`${prefix}-empty`)).toBeTruthy());
     expect(view.queryByTestId(`${prefix}-error`)).toBeNull();

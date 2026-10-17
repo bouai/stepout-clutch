@@ -41,11 +41,27 @@ notifications, maps, async-storage, safe-area) are mocked in `jest.setup.js`.
 `fetch` is stubbed per test via `stubFetch` in `src/test-utils.tsx` and fails
 loudly if a test forgets to register a route.
 
-Note: RNTL v14's `render` is **async**. Always `await` it:
+Note: RNTL v14's `render` and `fireEvent` are both **async**. Always `await`
+them; an un-awaited `fireEvent` lets its state updates land outside `act()`:
 
 ```ts
 const view = await renderWithProviders(<HomeScreen />);
+await fireEvent.press(view.getByTestId('home-settings-button'));
 ```
+
+## CI
+
+`.github/workflows/ci.yml` runs on every pull request to `main` and every push
+to `main`, as three jobs:
+
+| Job | Runs |
+|---|---|
+| `backend` | `python -m pytest -q` in `server/` (Python 3.12) |
+| `frontend-types` | `npx tsc --noEmit` in `app/` (Node 22) |
+| `frontend-tests` | `npx jest --ci` in `app/` (Node 22) |
+
+All three must be green before a PR is merged. CI covers the first two layers
+only; the device layer below is still a manual checkpoint.
 
 ## Layer 3 — Device
 

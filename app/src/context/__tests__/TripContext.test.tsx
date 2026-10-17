@@ -112,7 +112,7 @@ describe('TripContext', () => {
     const view = await renderProbe();
 
     await waitFor(() => expect(view.getByTestId('ready').props.children).toBe('true'));
-    fireEvent.press(view.getByTestId('select-1'));
+    await fireEvent.press(view.getByTestId('select-1'));
 
     await waitFor(() => expect(view.getByTestId('current').props.children).toBe('1'));
     expect(await AsyncStorage.getItem(SELECTED_TRIP_KEY)).toBe('1');
@@ -124,7 +124,7 @@ describe('TripContext', () => {
     const view = await renderProbe();
 
     await waitFor(() => expect(view.getByTestId('current').props.children).toBe('1'));
-    fireEvent.press(view.getByTestId('select-all'));
+    await fireEvent.press(view.getByTestId('select-all'));
 
     await waitFor(() => expect(view.getByTestId('current').props.children).toBe('null'));
     expect(await AsyncStorage.getItem(SELECTED_TRIP_KEY)).toBeNull();
@@ -140,7 +140,7 @@ describe('TripContext', () => {
     await waitFor(() =>
       expect(view.getByTestId('names').props.children).toBe('Tokyo,Lisbon')
     );
-    fireEvent.press(view.getByTestId('rename-1'));
+    await fireEvent.press(view.getByTestId('rename-1'));
 
     await waitFor(() =>
       expect(view.getByTestId('names').props.children).toBe('Kyoto,Lisbon')
@@ -156,7 +156,7 @@ describe('TripContext', () => {
     const view = await renderProbe();
 
     await waitFor(() => expect(view.getByTestId('current').props.children).toBe('1'));
-    fireEvent.press(view.getByTestId('delete-1'));
+    await fireEvent.press(view.getByTestId('delete-1'));
 
     await waitFor(() =>
       expect(view.getByTestId('names').props.children).toBe('Lisbon')
@@ -215,7 +215,7 @@ describe('TripContext', () => {
     const view = await renderProbe();
     await waitFor(() => expect(view.getByTestId('ready').props.children).toBe('true'));
 
-    fireEvent.press(view.getByTestId('create-typed'));
+    await fireEvent.press(view.getByTestId('create-typed'));
 
     await waitFor(() =>
       expect(view.getByTestId('applied').props.children).toBe('added:3')
@@ -233,7 +233,7 @@ describe('TripContext', () => {
     const view = await renderProbe();
     await waitFor(() => expect(view.getByTestId('ready').props.children).toBe('true'));
 
-    fireEvent.press(view.getByTestId('create-untyped'));
+    await fireEvent.press(view.getByTestId('create-untyped'));
 
     await waitFor(() =>
       expect(view.getByTestId('applied').props.children).toBe('no-apply')
@@ -251,7 +251,7 @@ describe('TripContext', () => {
     const view = await renderProbe();
     await waitFor(() => expect(view.getByTestId('ready').props.children).toBe('true'));
 
-    fireEvent.press(view.getByTestId('create-typed'));
+    await fireEvent.press(view.getByTestId('create-typed'));
 
     // The trip lands in the list even though the template did not apply.
     await waitFor(() =>
@@ -289,7 +289,7 @@ describe('TripContext', () => {
       expect(view.getByTestId('names').props.children).toBe('Commute')
     );
 
-    fireEvent.press(view.getByTestId('maybe-reset-1'));
+    await fireEvent.press(view.getByTestId('maybe-reset-1'));
 
     await waitFor(() =>
       expect(view.getByTestId('reset-result').props.children).toBe('reset')
@@ -310,7 +310,7 @@ describe('TripContext', () => {
       expect(view.getByTestId('names').props.children).toBe('Commute')
     );
 
-    fireEvent.press(view.getByTestId('maybe-reset-1'));
+    await fireEvent.press(view.getByTestId('maybe-reset-1'));
 
     await waitFor(() =>
       expect(view.getByTestId('reset-result').props.children).toBe('skipped')
@@ -329,7 +329,7 @@ describe('TripContext', () => {
       expect(view.getByTestId('names').props.children).toBe('Commute')
     );
 
-    fireEvent.press(view.getByTestId('maybe-reset-1'));
+    await fireEvent.press(view.getByTestId('maybe-reset-1'));
 
     await waitFor(() =>
       expect(view.getByTestId('reset-result').props.children).toBe('skipped')
